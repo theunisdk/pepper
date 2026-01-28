@@ -34,18 +34,20 @@ mkdir -p "$BACKUP_DIR"
 
 # Create backup on EC2
 echo "Creating backup archive on EC2..."
-ssh -i "$SSH_KEY" ubuntu@"$HOST" << 'EOF' || {
-    echo -e "${RED}Error: Backup failed on remote host${NC}"
-    exit 1
-}
-cd /home/clawd
+ssh -i "$SSH_KEY" ubuntu@"$HOST" << 'EOF'
 sudo tar -czf /tmp/pepper-backup.tar.gz \
-  .clawdbot/ \
-  .gog/ \
-  moltbot/ \
+  -C /home/clawd \
+  .clawdbot \
+  .gog \
+  moltbot \
   2>/dev/null || true
 sudo chmod 644 /tmp/pepper-backup.tar.gz
 EOF
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: Backup failed on remote host${NC}"
+    exit 1
+fi
 
 # Download backup
 echo "Downloading backup..."
