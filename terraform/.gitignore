@@ -1,0 +1,29 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Terraform directory
+.terraform/
+
+# Sensitive variable files
+terraform.tfvars
+*.auto.tfvars
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash logs
+crash.log
+crash.*.log
+
+# SSH keys (should never be committed)
+*.pem
+*.key
+
+# Plan files
+*.tfplan
+tfplan

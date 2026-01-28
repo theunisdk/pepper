@@ -1,0 +1,223 @@
+#!/bin/bash
+set -euo pipefail
+
+# Log all output for debugging
+exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+echo "=== Starting moltbot instance initialization ==="
+echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+# -----------------------------------------------------------------------------
+# SYSTEM UPDATES
+# -----------------------------------------------------------------------------
+echo ">>> Updating system packages..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+
+# -----------------------------------------------------------------------------
+# CREATE NON-ROOT USER
+# -----------------------------------------------------------------------------
+echo ">>> Creating non-root user: ${moltbot_user}"
+if ! id "${moltbot_user}" &>/dev/null; then
+    useradd -m -s /bin/bash -G sudo "${moltbot_user}"
+    echo "${moltbot_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${moltbot_user}
+    chmod 440 /etc/sudoers.d/${moltbot_user}
+fi
+
+# Copy SSH authorized_keys from ubuntu user to new user
+mkdir -p /home/${moltbot_user}/.ssh
+cp /home/ubuntu/.ssh/authorized_keys /home/${moltbot_user}/.ssh/
+chown -R ${moltbot_user}:${moltbot_user} /home/${moltbot_user}/.ssh
+chmod 700 /home/${moltbot_user}/.ssh
+chmod 600 /home/${moltbot_user}/.ssh/authorized_keys
+
+# -----------------------------------------------------------------------------
+# SECURITY HARDENING
+# -----------------------------------------------------------------------------
+echo ">>> Configuring SSH security..."
+
+# Backup original sshd_config
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+
+# Configure SSH hardening
+cat > /etc/ssh/sshd_config.d/99-hardening.conf <<'SSHEOF'
+# Disable root login
+PermitRootLogin no
+
+# Disable password authentication (key-only)
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+
+# Use strong key exchange algorithms
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+
+# Use strong ciphers
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+
+# Use strong MACs
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+
+# Reduce login grace time
+LoginGraceTime 30
+
+# Limit authentication attempts
+MaxAuthTries 3
+
+# Disable X11 forwarding
+X11Forwarding no
+
+# Disable TCP forwarding except for local port forwarding (needed for gateway tunnel)
+AllowTcpForwarding local
+
+# Client alive settings
+ClientAliveInterval 300
+ClientAliveCountMax 2
+SSHEOF
+
+# Reload SSH service
+systemctl reload sshd
+
+# -----------------------------------------------------------------------------
+# INSTALL SECURITY TOOLS
+# -----------------------------------------------------------------------------
+echo ">>> Installing security tools..."
+apt-get install -y ufw fail2ban unattended-upgrades apt-listchanges
+
+# Configure UFW (firewall)
+echo ">>> Configuring UFW firewall..."
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow OpenSSH
+# Note: Port ${gateway_port} is NOT opened - access via SSH tunnel only
+ufw --force enable
+
+# Configure fail2ban
+echo ">>> Configuring fail2ban..."
+cat > /etc/fail2ban/jail.local <<'F2BEOF'
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 3
+backend = systemd
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 3600
+F2BEOF
+
+systemctl enable fail2ban
+systemctl restart fail2ban
+
+# Configure automatic security updates
+echo ">>> Configuring automatic security updates..."
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<'AUTOEOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+AUTOEOF
+
+%{ if install_node }
+# -----------------------------------------------------------------------------
+# INSTALL NODE.JS 24 (required by moltbot)
+# -----------------------------------------------------------------------------
+echo ">>> Installing Node.js 24..."
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+apt-get install -y nodejs build-essential
+
+# Verify installation
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+
+# Configure npm to use /usr/local for global packages (system-wide PATH)
+npm config set prefix /usr/local
+
+# Install pnpm globally
+npm install -g pnpm
+echo "pnpm version: $(pnpm --version)"
+%{ endif }
+
+%{ if install_moltbot }
+# -----------------------------------------------------------------------------
+# INSTALL MOLTBOT (CLI binary is currently 'clawdbot', aliased to 'moltbot')
+# -----------------------------------------------------------------------------
+echo ">>> Installing moltbot CLI..."
+
+# Install via official curl installer (the npm package 'moltbot' is just a placeholder)
+# The binary is called 'clawdbot' for now - see: https://docs.molt.bot/start/getting-started
+curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup || {
+  echo "curl installer failed"
+  exit 1
+}
+
+# Create 'moltbot' alias symlink (future-proof naming)
+ln -sf /usr/local/bin/clawdbot /usr/local/bin/moltbot
+
+# Verify installation
+echo "moltbot version: $(moltbot --version)"
+
+# Create workspace directory
+MOLTBOT_WORKSPACE="/home/${moltbot_user}/moltbot"
+mkdir -p "$MOLTBOT_WORKSPACE"
+chown -R ${moltbot_user}:${moltbot_user} "$MOLTBOT_WORKSPACE"
+
+# Create systemd service file (disabled by default - user enables after config)
+cat > /etc/systemd/system/moltbot.service <<SVCEOF
+[Unit]
+Description=Moltbot Gateway Service
+After=network.target
+
+[Service]
+Type=simple
+User=${moltbot_user}
+WorkingDirectory=/home/${moltbot_user}/moltbot
+ExecStart=/usr/local/bin/moltbot gateway --bind loopback --port ${gateway_port}
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+systemctl daemon-reload
+echo "Systemd service created (run 'sudo systemctl enable --now moltbot' after configuration)"
+
+# Create helpful login message
+cat > /etc/update-motd.d/99-moltbot <<MOTDEOF
+#!/bin/bash
+echo ""
+echo "=========================================="
+echo "  MOLTBOT INSTANCE READY"
+echo "=========================================="
+echo ""
+echo "Next steps:"
+echo "  1. Switch to moltbot user:   sudo -u ${moltbot_user} -i"
+echo "  2. Run onboarding:           moltbot onboard"
+echo "  3. IMPORTANT: Bind gateway to 127.0.0.1 only!"
+echo "  4. Enable service:           sudo systemctl enable --now moltbot"
+echo ""
+echo "Access gateway via SSH tunnel (from your local machine):"
+echo "  ssh -i ~/.ssh/moltbot_key.pem -L ${gateway_port}:127.0.0.1:${gateway_port} ubuntu@<this-ip> -N"
+echo "  Then browse: http://127.0.0.1:${gateway_port}"
+echo ""
+MOTDEOF
+chmod +x /etc/update-motd.d/99-moltbot
+%{ endif }
+
+# -----------------------------------------------------------------------------
+# FINAL CLEANUP
+# -----------------------------------------------------------------------------
+echo ">>> Cleaning up..."
+apt-get autoremove -y
+apt-get autoclean -y
+
+echo "=== Instance initialization complete ==="
+echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+# Create marker file to indicate successful initialization
+touch /var/lib/cloud/instance/moltbot-init-complete
