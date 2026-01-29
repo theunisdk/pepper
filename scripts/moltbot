@@ -1,0 +1,75 @@
+#!/bin/bash
+# Moltbot Multi-Instance Manager
+# Usage: moltbot <instance> <command> [args...]
+
+set -euo pipefail
+
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source libraries
+source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/config.sh"
+source "$SCRIPT_DIR/lib/commands.sh"
+
+# Parse arguments
+if [[ $# -lt 1 ]]; then
+    show_usage
+    exit 1
+fi
+
+# Special case: help
+if [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
+
+if [[ $# -lt 2 ]]; then
+    error "Missing command argument"
+    echo ""
+    show_usage
+    exit 1
+fi
+
+INSTANCE_NAME="$1"
+COMMAND="$2"
+shift 2
+
+# Validate instance name
+if ! validate_instance_name "$INSTANCE_NAME"; then
+    exit 1
+fi
+
+# Load instance configuration
+if ! load_instance_config "$INSTANCE_NAME"; then
+    exit 1
+fi
+
+# Execute command
+case "$COMMAND" in
+    terraform|tf)
+        exec_terraform "$@"
+        ;;
+    connect|admin)
+        exec_connect "$@"
+        ;;
+    backup)
+        exec_backup "$@"
+        ;;
+    restore)
+        exec_restore "$@"
+        ;;
+    ssh)
+        exec_ssh "$@"
+        ;;
+    status|info)
+        exec_status "$@"
+        ;;
+    *)
+        error "Unknown command: $COMMAND"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac

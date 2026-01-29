@@ -2,6 +2,8 @@
 
 This guide covers the secure onboarding configuration for moltbot on your EC2 instance.
 
+Throughout this guide, replace `{instance}` with your instance name (e.g., pepper, alfred, jarvis).
+
 ## Prerequisites
 
 - EC2 instance running with moltbot installed
@@ -12,7 +14,7 @@ This guide covers the secure onboarding configuration for moltbot on your EC2 in
 ## Connect to Instance
 
 ```bash
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37
+./scripts/moltbot {instance} ssh
 ```
 
 ## Install Moltbot (if not already installed)
@@ -24,6 +26,7 @@ sudo npm install -g moltbot@latest
 ## Switch to Moltbot User
 
 ```bash
+# Default user is "clawd" (configured in instance.yaml)
 sudo -u clawd -i
 ```
 
@@ -125,13 +128,13 @@ sudo journalctl -u moltbot -f
 
 **Never expose port 18789 to the internet.**
 
-From your local machine, create an SSH tunnel:
+From your local machine, use the wrapper to create an SSH tunnel and open the browser:
 
 ```bash
-ssh -i ~/.ssh/moltbot_key.pem -L 18789:127.0.0.1:18789 ubuntu@13.247.25.37 -N
+./scripts/moltbot {instance} connect
 ```
 
-Then open in browser: http://127.0.0.1:18789
+This creates the tunnel and opens http://127.0.0.1:18789 automatically.
 
 ## Telegram Bot Setup
 

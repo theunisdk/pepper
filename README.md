@@ -1,6 +1,8 @@
-# Pepper - Personal AI Assistant
+# Moltbot Multi-Instance Framework
 
-Pepper is a secure, self-hosted AI assistant built on [Moltbot](https://molt.bot) (formerly Clawdbot), running on a dedicated AWS EC2 instance with access to email, calendar, and messaging.
+A secure, self-hosted AI assistant framework built on [Moltbot](https://molt.bot) (formerly Clawdbot). Create and manage multiple independent moltbot instances (e.g., "pepper", "alfred", "jarvis") running on dedicated AWS EC2 instances with access to email, calendar, and messaging.
+
+**Current instances in this repo:** `pepper` (production)
 
 ## Architecture Overview
 
@@ -42,6 +44,28 @@ Pepper is a secure, self-hosted AI assistant built on [Moltbot](https://molt.bot
                       Your Phone/Laptop
 ```
 
+## Multi-Instance Support
+
+This framework supports running multiple independent moltbot instances in parallel:
+
+```bash
+# Create new instance
+./scripts/create-instance.sh alfred
+
+# Manage instances with unified wrapper
+./scripts/moltbot pepper backup     # Backup pepper
+./scripts/moltbot alfred connect    # Connect to alfred's admin UI
+./scripts/moltbot jarvis terraform apply  # Deploy jarvis
+
+# Each instance has:
+# ✓ Separate AWS infrastructure (VPC, EC2, EIP)
+# ✓ Separate SSH keys
+# ✓ Separate backups
+# ✓ Separate Terraform state
+```
+
+**See [Creating Instances Guide](docs/creating-instances.md) for details.**
+
 ## Security Model
 
 ### Data Isolation Strategy
@@ -82,42 +106,61 @@ For Pepper's own account (dedicated):
 
 ### Prerequisites
 
-- AWS account with `noldor` profile configured
+- AWS account with AWS CLI configured
 - Your IP address (for SSH restriction)
-- Google account for Pepper
+- Google account for your bot
 - Telegram account
 
-### 1. Deploy Infrastructure
+### 1. Create Instance
 
 ```bash
-cd terraform/environments/prod
+# Create a new instance (e.g., "pepper")
+./scripts/create-instance.sh pepper
 
-# Update terraform.tfvars with your IP
-# allowed_ssh_cidr = "YOUR.IP.ADDRESS/32"
-
-# Apply Terraform
-AWS_PROFILE=noldor terraform init
-AWS_PROFILE=noldor terraform apply
+# Edit configuration
+nano instances/pepper/terraform.tfvars
+# Update: allowed_ssh_cidr = "YOUR.IP.ADDRESS/32"
 ```
 
-### 2. Connect to Instance
+### 2. Deploy Infrastructure
 
 ```bash
-# SSH directly
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37
-
-# Or use the admin UI
-./scripts/connectToAdmin.sh
+# Initialize and deploy
+./scripts/moltbot pepper terraform init
+./scripts/moltbot pepper terraform apply
 ```
 
-### 3. Configure Integrations
+### 3. Configure Bot
+
+```bash
+# SSH to instance
+./scripts/moltbot pepper ssh
+
+# Switch to bot user and run onboarding
+sudo -u clawd -i
+moltbot onboard
+# ... follow onboarding wizard ...
+
+# Enable service
+exit
+sudo systemctl enable --now moltbot
+exit
+```
+
+### 4. Connect to Admin UI
+
+```bash
+./scripts/moltbot pepper connect
+# Opens http://127.0.0.1:18789 in your browser
+```
+
+### 5. Configure Integrations (Optional)
 
 Follow the setup guides:
 - [Google Workspace Setup](docs/google-workspace-setup.md) - Gmail, Calendar, Drive
-- [Moltbot Onboarding](docs/moltbot-onboarding-setup.md) - Initial configuration
-- [Gemini API Setup](docs/gemini-api-key-setup.md) - Optional AI model
+- [Gemini API Setup](docs/gemini-api-key-setup.md) - Alternative AI model
 
-### 4. Test via Telegram
+### 6. Test via Telegram
 
 Message your bot:
 ```
@@ -130,6 +173,7 @@ Draft a reply to that email from Sarah
 
 ## Documentation
 
+- **[Creating Instances](docs/creating-instances.md)** - Multi-instance setup and management
 - **[Google Workspace Setup](docs/google-workspace-setup.md)** - Configure Gmail, Calendar, Drive access
 - **[Moltbot Onboarding](docs/moltbot-onboarding-setup.md)** - Initial bot configuration
 - **[Gemini API Setup](docs/gemini-api-key-setup.md)** - Alternative AI model configuration
@@ -143,22 +187,28 @@ Draft a reply to that email from Sarah
 ### Access Admin UI
 
 ```bash
-./scripts/connectToAdmin.sh
+# Replace {instance} with your instance name (e.g., pepper, alfred, jarvis)
+./scripts/moltbot {instance} connect
 # Opens http://127.0.0.1:18789 in your browser
 ```
 
 ### SSH to Instance
 
 ```bash
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37
+./scripts/moltbot {instance} ssh
 
-# Switch to Pepper's user
+# Switch to bot user
 sudo -u clawd -i
 ```
 
 ### Check Service Status
 
 ```bash
+# Check instance info and service status
+./scripts/moltbot {instance} status
+
+# Or SSH and check manually
+./scripts/moltbot {instance} ssh
 sudo systemctl status moltbot
 sudo journalctl -u moltbot -f
 ```
@@ -166,6 +216,7 @@ sudo journalctl -u moltbot -f
 ### Restart Service
 
 ```bash
+./scripts/moltbot {instance} ssh
 sudo systemctl restart moltbot
 ```
 
@@ -176,20 +227,19 @@ sudo systemctl restart moltbot
 ### Create Backup
 
 ```bash
-./scripts/backup-pepper.sh
-# Saves to ~/.pepper-backups/YYYYMMDD-HHMMSS/
+./scripts/moltbot {instance} backup
+# Saves to ~/.{instance}-backups/YYYYMMDD-HHMMSS/
 ```
 
 ### Restore After Instance Recreation
 
 ```bash
 # 1. Destroy and recreate
-cd terraform/environments/prod
-AWS_PROFILE=noldor terraform destroy
-AWS_PROFILE=noldor terraform apply
+./scripts/moltbot {instance} terraform destroy
+./scripts/moltbot {instance} terraform apply
 
 # 2. Restore from backup
-./scripts/restore-pepper.sh ~/.pepper-backups/latest/pepper-backup.tar.gz
+./scripts/moltbot {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
 ```
 
 See [Backup & Restore Guide](docs/backup-restore-guide.md) for details.
@@ -198,32 +248,33 @@ See [Backup & Restore Guide](docs/backup-restore-guide.md) for details.
 
 ## Terraform Infrastructure
 
-All infrastructure is defined in `terraform/`:
+Infrastructure is organized as a reusable module with per-instance configurations:
 
 ```
-terraform/
-├── environments/prod/          # Production environment
-│   ├── main.tf                 # Root module
-│   ├── terraform.tfvars.example
-│   └── variables.tf
-└── modules/moltbot/            # Reusable module
-    ├── vpc.tf                  # Dedicated VPC
-    ├── security.tf             # Security groups, ACLs
-    ├── ec2.tf                  # EC2 instance
-    ├── iam.tf                  # IAM roles
-    └── user_data/init.sh.tftpl # Bootstrap script
+terraform/modules/moltbot/      # Reusable module
+├── vpc.tf                      # Dedicated VPC
+├── security.tf                 # Security groups, ACLs
+├── ec2.tf                      # EC2 instance
+├── iam.tf                      # IAM roles
+└── user_data/init.sh.tftpl     # Bootstrap script
+
+instances/{name}/               # Per-instance Terraform
+├── main.tf                     # Calls moltbot module
+├── variables.tf                # Variable definitions
+├── terraform.tfvars            # Instance-specific values
+└── .terraform/                 # Isolated Terraform state
 ```
 
-**Resources created:**
+**Resources created per instance:**
 - VPC with public subnet
 - Security group (SSH only from your IP)
 - EC2 t3.small with Ubuntu 22.04
 - EBS encryption, IMDSv2
-- SSH key pair
+- SSH key pair (unique per instance)
 - IAM role for CloudWatch/SSM
 - VPC Flow Logs
 
-See [terraform/README.md](terraform/README.md) for details.
+See [terraform/README.md](terraform/README.md) for module details.
 
 ---
 
@@ -347,24 +398,28 @@ AWS_PROFILE=noldor terraform apply -replace=module.moltbot.aws_instance.moltbot
 ## Useful Commands
 
 ```bash
+# Replace {instance} with your instance name (e.g., pepper, alfred, jarvis)
+
 # Connect to admin UI
-./scripts/connectToAdmin.sh
+./scripts/moltbot {instance} connect
 
 # SSH to instance
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37
+./scripts/moltbot {instance} ssh
 
-# Backup Pepper's data
-./scripts/backup-pepper.sh
+# Backup instance data
+./scripts/moltbot {instance} backup
 
 # Restore from backup
-./scripts/restore-pepper.sh ~/.pepper-backups/latest/pepper-backup.tar.gz
+./scripts/moltbot {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
+
+# Check instance status
+./scripts/moltbot {instance} status
 
 # View Terraform outputs
-cd terraform/environments/prod
-AWS_PROFILE=noldor terraform output
+./scripts/moltbot {instance} terraform output
 
 # Destroy everything (careful!)
-AWS_PROFILE=noldor terraform destroy
+./scripts/moltbot {instance} terraform destroy
 ```
 
 ---
@@ -375,18 +430,30 @@ AWS_PROFILE=noldor terraform destroy
 .
 ├── README.md                           # This file
 ├── CLAUDE.md                          # Project context for Claude
+├── instances/                          # Instance configurations
+│   ├── instance.yaml.example          # Template for new instances
+│   ├── pepper/                        # Example instance
+│   │   ├── instance.yaml              # Instance configuration
+│   │   ├── main.tf                    # Terraform root module
+│   │   ├── variables.tf               # Terraform variables
+│   │   ├── terraform.tfvars           # Instance values (gitignored)
+│   │   └── .terraform/                # Terraform state (gitignored)
+│   └── {other-instances}/             # Additional instances...
 ├── scripts/
-│   ├── connectToAdmin.sh              # SSH tunnel + open browser
-│   ├── backup-pepper.sh               # Backup script
-│   └── restore-pepper.sh              # Restore script
+│   ├── moltbot                        # Main wrapper script
+│   ├── lib/                           # Shared libraries
+│   │   ├── common.sh                  # Utilities and logging
+│   │   ├── config.sh                  # Config loader
+│   │   └── commands.sh                # Command implementations
+│   └── create-instance.sh             # Instance creation wizard
 ├── docs/
+│   ├── creating-instances.md          # Multi-instance guide
 │   ├── google-workspace-setup.md      # Gmail/Calendar setup
 │   ├── moltbot-onboarding-setup.md    # Initial configuration
 │   ├── gemini-api-key-setup.md        # Gemini API setup
 │   └── backup-restore-guide.md        # Disaster recovery
 └── terraform/
     ├── README.md                       # Infrastructure docs
-    ├── environments/prod/              # Production config
     └── modules/moltbot/                # Reusable module
 ```
 

@@ -11,6 +11,13 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# Instance-specific files (sensitive)
+instances/*/terraform.tfvars
+instances/*/.terraform/
+instances/*/*.tfstate
+instances/*/*.tfstate.*
+instances/*/.terraform.lock.hcl
+
 # SSH keys
 *.pem
 *.pub

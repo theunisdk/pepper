@@ -1,0 +1,41 @@
+# Moltbot Instance Configuration: pepper
+
+name: pepper
+display_name: Pepper
+
+# AWS Configuration
+aws:
+  profile: noldor
+  region: af-south-1
+
+# Instance Configuration
+instance:
+  type: t3.small
+  volume_size: 30
+
+# Moltbot Configuration
+moltbot:
+  user: clawd
+  gateway_port: 18789
+
+# SSH Configuration
+ssh:
+  key_name: moltbot_key
+  key_path: ~/.ssh/moltbot_key.pem
+  public_key_path: ~/.ssh/moltbot_key.pub
+
+# Networking
+network:
+  allowed_ssh_cidr: "196.45.30.215/32"
+  vpc_cidr: "10.100.0.0/16"
+  subnet_cidr: "10.100.1.0/24"
+
+# Paths
+paths:
+  backup_dir: ~/.pepper-backups
+
+# Tags
+tags:
+  Owner: theunisdk
+  Project: moltbot-pepper
+  Environment: prod

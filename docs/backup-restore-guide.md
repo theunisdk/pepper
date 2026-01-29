@@ -1,6 +1,8 @@
 # Moltbot Backup & Restore Guide
 
-This guide shows how to backup Pepper's configuration and data so you can quickly restore after recreating the EC2 instance.
+This guide shows how to backup your moltbot instance configuration and data so you can quickly restore after recreating the EC2 instance.
+
+Throughout this guide, replace `{instance}` with your instance name (e.g., pepper, alfred, jarvis).
 
 ## What Needs to be Backed Up
 
@@ -9,10 +11,10 @@ This guide shows how to backup Pepper's configuration and data so you can quickl
 2. **Environment Variables**: `~/.clawdbot/.env`
 3. **OAuth Tokens**: `~/.gog/` (Google Workspace)
 4. **Telegram Bot Token**: Already in `clawdbot.json`
-5. **Google OAuth Credentials**: `pepper-credentials.json`
+5. **Google OAuth Credentials**: `{instance}-credentials.json`
 
 ### Optional (Memory/History)
-6. **Git Workspace**: `~/moltbot/` (Pepper's memory, identity, notes)
+6. **Git Workspace**: `~/moltbot/` (bot's memory, identity, notes)
 7. **Chat History**: `~/.clawdbot/sessions/` (conversation logs)
 
 ### Not Needed (Recreated by Terraform)
@@ -24,46 +26,22 @@ This guide shows how to backup Pepper's configuration and data so you can quickl
 
 ## Backup Methods
 
-### Method 1: Manual Backup Script (Recommended)
+### Method 1: Using Moltbot Wrapper (Recommended)
 
-Create a backup script to automate the process:
+The unified moltbot wrapper handles backups automatically:
 
 ```bash
-# On your local machine
-cat > scripts/backup-pepper.sh << 'EOF'
-#!/bin/bash
-set -euo pipefail
+# Backup your instance
+./scripts/moltbot {instance} backup
 
-# Configuration
-SSH_KEY="${MOLTBOT_SSH_KEY:-$HOME/.ssh/moltbot_key.pem}"
-HOST="${MOLTBOT_HOST:-13.247.25.37}"
-BACKUP_DIR="${HOME}/.pepper-backups/$(date +%Y%m%d-%H%M%S)"
-
-echo "Creating backup directory: $BACKUP_DIR"
-mkdir -p "$BACKUP_DIR"
-
-# Backup from EC2
-echo "Backing up from $HOST..."
-ssh -i "$SSH_KEY" ubuntu@"$HOST" "sudo tar -czf /tmp/pepper-backup.tar.gz -C /home/clawd .clawdbot .gog moltbot 2>/dev/null || true"
-
-# Download backup
-scp -i "$SSH_KEY" ubuntu@"$HOST":/tmp/pepper-backup.tar.gz "$BACKUP_DIR/"
-
-# Cleanup remote
-ssh -i "$SSH_KEY" ubuntu@"$HOST" "sudo rm /tmp/pepper-backup.tar.gz"
-
-echo "✓ Backup saved to: $BACKUP_DIR/pepper-backup.tar.gz"
-echo ""
-echo "Backup contains:"
-echo "  - ~/.clawdbot/ (config, credentials, sessions)"
-echo "  - ~/.gog/ (Google OAuth tokens)"
-echo "  - ~/moltbot/ (workspace, memory, git history)"
-echo ""
-echo "To restore: ./scripts/restore-pepper.sh $BACKUP_DIR/pepper-backup.tar.gz"
-EOF
-
-chmod +x scripts/backup-pepper.sh
+# Backups are saved to: ~/.{instance}-backups/YYYYMMDD-HHMMSS/
+# Example: ~/.pepper-backups/20260129-143052/pepper-backup.tar.gz
 ```
+
+The backup includes:
+- `~/.clawdbot/` - Configuration, credentials, sessions
+- `~/.gog/` - Google OAuth tokens
+- `~/moltbot/` - Workspace, memory, git history
 
 ### Method 2: Automatic Daily Backups
 
@@ -73,64 +51,34 @@ Set up a cron job on your local machine:
 # Edit crontab
 crontab -e
 
-# Add daily backup at 2 AM
-0 2 * * * /home/theunisdk/dev/private/pepper/scripts/backup-pepper.sh
+# Add daily backup at 2 AM for each instance
+0 2 * * * cd /home/your-user/dev/private/pepper && ./scripts/moltbot pepper backup
+0 2 * * * cd /home/your-user/dev/private/pepper && ./scripts/moltbot alfred backup
 ```
 
 ---
 
 ## Restore Process
 
-### Automated Restore Script
+### Using Moltbot Wrapper
+
+The unified moltbot wrapper handles restores automatically:
 
 ```bash
-# On your local machine
-cat > scripts/restore-pepper.sh << 'EOF'
-#!/bin/bash
-set -euo pipefail
+# Restore from a backup file
+./scripts/moltbot {instance} restore ~/.{instance}-backups/YYYYMMDD-HHMMSS/{instance}-backup.tar.gz
 
-# Configuration
-SSH_KEY="${MOLTBOT_SSH_KEY:-$HOME/.ssh/moltbot_key.pem}"
-HOST="${MOLTBOT_HOST:-13.247.25.37}"
-BACKUP_FILE="$1"
-
-if [[ ! -f "$BACKUP_FILE" ]]; then
-    echo "Error: Backup file not found: $BACKUP_FILE"
-    echo "Usage: $0 <path-to-backup.tar.gz>"
-    exit 1
-fi
-
-echo "Restoring from: $BACKUP_FILE"
-echo "To host: $HOST"
-echo ""
-read -p "Continue? (y/n) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    exit 1
-fi
-
-# Upload backup
-echo "Uploading backup..."
-scp -i "$SSH_KEY" "$BACKUP_FILE" ubuntu@"$HOST":/tmp/pepper-backup.tar.gz
-
-# Extract and restore
-echo "Restoring on EC2..."
-ssh -i "$SSH_KEY" ubuntu@"$HOST" << 'REMOTE'
-sudo systemctl stop moltbot
-sudo tar -xzf /tmp/pepper-backup.tar.gz -C /home/clawd/
-sudo chown -R clawd:clawd /home/clawd/.clawdbot /home/clawd/.gog /home/clawd/moltbot
-sudo rm /tmp/pepper-backup.tar.gz
-sudo systemctl start moltbot
-REMOTE
-
-echo "✓ Restore complete!"
-echo ""
-echo "Services restarted:"
-echo "  sudo systemctl status moltbot"
-EOF
-
-chmod +x scripts/restore-pepper.sh
+# Example
+./scripts/moltbot pepper restore ~/.pepper-backups/20260129-143052/pepper-backup.tar.gz
 ```
+
+The restore process:
+1. Prompts for confirmation
+2. Uploads backup to EC2 instance
+3. Stops moltbot service
+4. Extracts backup to correct locations
+5. Fixes file permissions
+6. Restarts moltbot service
 
 ---
 
@@ -140,42 +88,44 @@ chmod +x scripts/restore-pepper.sh
 
 1. **Recreate infrastructure**:
    ```bash
-   cd terraform/environments/prod
-   AWS_PROFILE=noldor terraform apply
+   ./scripts/moltbot {instance} terraform apply
    ```
 
 2. **Wait for initialization** (cloud-init completes):
    ```bash
-   ssh -i ~/.ssh/moltbot_key.pem ubuntu@<new-ip> cloud-init status --wait
+   ./scripts/moltbot {instance} ssh
+   cloud-init status --wait
+   exit
    ```
 
 3. **Restore backup**:
    ```bash
-   # Update host in restore script or set env var
-   export MOLTBOT_HOST=<new-ip>
-
    # Restore from latest backup
-   ./scripts/restore-pepper.sh ~/.pepper-backups/<latest>/pepper-backup.tar.gz
+   ./scripts/moltbot {instance} restore ~/.{instance}-backups/<latest>/{instance}-backup.tar.gz
    ```
 
 4. **Verify**:
    ```bash
-   ssh -i ~/.ssh/moltbot_key.pem ubuntu@<new-ip> "sudo systemctl status moltbot"
+   ./scripts/moltbot {instance} status
    ```
 
-Done! Pepper is back with all her memory and configuration.
+Done! Your bot is back with all its memory and configuration.
 
 ---
 
-## Manual Backup (No Scripts)
+## Manual Backup (Without Wrapper)
+
+If you prefer manual commands instead of using the wrapper:
 
 ### Backup
 
 ```bash
 # From your local machine
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37 << 'EOF'
+# Get instance IP: ./scripts/moltbot {instance} terraform output instance_public_ip
+
+ssh -i ~/.ssh/{instance}_key.pem ubuntu@<instance-ip> << 'EOF'
 cd /home/clawd
-sudo tar -czf /tmp/pepper-backup.tar.gz \
+sudo tar -czf /tmp/{instance}-backup.tar.gz \
   .clawdbot/clawdbot.json \
   .clawdbot/.env \
   .clawdbot/sessions/ \
@@ -184,19 +134,19 @@ sudo tar -czf /tmp/pepper-backup.tar.gz \
 EOF
 
 # Download
-scp -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37:/tmp/pepper-backup.tar.gz ~/pepper-backup-$(date +%Y%m%d).tar.gz
+scp -i ~/.ssh/{instance}_key.pem ubuntu@<instance-ip>:/tmp/{instance}-backup.tar.gz ~/{instance}-backup-$(date +%Y%m%d).tar.gz
 ```
 
 ### Restore
 
 ```bash
 # Upload
-scp -i ~/.ssh/moltbot_key.pem ~/pepper-backup-YYYYMMDD.tar.gz ubuntu@<new-ip>:/tmp/
+scp -i ~/.ssh/{instance}_key.pem ~/{instance}-backup-YYYYMMDD.tar.gz ubuntu@<instance-ip>:/tmp/
 
 # Extract
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@<new-ip> << 'EOF'
+ssh -i ~/.ssh/{instance}_key.pem ubuntu@<instance-ip> << 'EOF'
 sudo systemctl stop moltbot
-sudo tar -xzf /tmp/pepper-backup.tar.gz -C /home/clawd/
+sudo tar -xzf /tmp/{instance}-backup.tar.gz -C /home/clawd/
 sudo chown -R clawd:clawd /home/clawd/.clawdbot /home/clawd/.gog /home/clawd/moltbot
 sudo systemctl start moltbot
 EOF
@@ -211,7 +161,7 @@ EOF
 | **Config** | `~/.clawdbot/clawdbot.json` | Telegram bot token, gateway settings, skill config |
 | **Env vars** | `~/.clawdbot/.env` | Google account, API keys |
 | **OAuth tokens** | `~/.gog/` | Google Workspace access tokens |
-| **Memory** | `~/moltbot/` | Pepper's identity, memories, git history |
+| **Memory** | `~/moltbot/` | Bot's identity, memories, git history |
 | **Sessions** | `~/.clawdbot/sessions/` | Conversation history |
 
 ---
@@ -220,11 +170,11 @@ EOF
 
 ### Local Backups
 ```bash
-~/.pepper-backups/
+~/.{instance}-backups/
 ├── 20260128-140000/
-│   └── pepper-backup.tar.gz
+│   └── {instance}-backup.tar.gz
 ├── 20260129-140000/
-│   └── pepper-backup.tar.gz
+│   └── {instance}-backup.tar.gz
 └── latest -> 20260129-140000/
 ```
 
@@ -234,14 +184,14 @@ Keep last 7 days locally, delete older.
 
 ```bash
 # Encrypt before uploading
-gpg --symmetric --cipher-algo AES256 pepper-backup.tar.gz
+gpg --symmetric --cipher-algo AES256 {instance}-backup.tar.gz
 
 # Upload to S3 (requires AWS CLI)
-aws s3 cp pepper-backup.tar.gz.gpg s3://your-bucket/pepper-backups/
+aws s3 cp {instance}-backup.tar.gz.gpg s3://your-bucket/{instance}-backups/
 
 # Restore
-aws s3 cp s3://your-bucket/pepper-backups/pepper-backup.tar.gz.gpg .
-gpg --decrypt pepper-backup.tar.gz.gpg > pepper-backup.tar.gz
+aws s3 cp s3://your-bucket/{instance}-backups/{instance}-backup.tar.gz.gpg .
+gpg --decrypt {instance}-backup.tar.gz.gpg > {instance}-backup.tar.gz
 ```
 
 ---
@@ -276,17 +226,16 @@ Periodically test the restore process:
 
 ```bash
 # 1. Create backup
-./scripts/backup-pepper.sh
+./scripts/moltbot {instance} backup
 
 # 2. Destroy and recreate test instance
-cd terraform/environments/prod
-AWS_PROFILE=noldor terraform destroy -auto-approve
-AWS_PROFILE=noldor terraform apply -auto-approve
+./scripts/moltbot {instance} terraform destroy -auto-approve
+./scripts/moltbot {instance} terraform apply -auto-approve
 
 # 3. Restore
-./scripts/restore-pepper.sh ~/.pepper-backups/latest/pepper-backup.tar.gz
+./scripts/moltbot {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
 
-# 4. Verify Pepper responds on Telegram
+# 4. Verify bot responds on Telegram
 ```
 
 ---
@@ -295,11 +244,11 @@ AWS_PROFILE=noldor terraform apply -auto-approve
 
 - [ ] Latest backup is less than 24 hours old
 - [ ] Backup includes `~/.clawdbot/`, `~/.gog/`, `~/moltbot/`
-- [ ] `pepper-credentials.json` saved locally
-- [ ] Terraform state is committed/backed up
-- [ ] SSH keys are accessible (`~/.ssh/moltbot_key.pem`)
-- [ ] You know your EC2 IP or can find it via AWS Console
-- [ ] Restore script tested within last month
+- [ ] `{instance}-credentials.json` saved locally
+- [ ] Terraform state is backed up (in `instances/{instance}/.terraform/`)
+- [ ] SSH keys are accessible (`~/.ssh/{instance}_key.pem`)
+- [ ] You can get instance IP via `./scripts/moltbot {instance} terraform output`
+- [ ] Restore tested within last month
 - [ ] Google OAuth app still in Google Cloud Console
 
 ---
@@ -308,14 +257,19 @@ AWS_PROFILE=noldor terraform apply -auto-approve
 
 ```bash
 # Backup
-./scripts/backup-pepper.sh
+./scripts/moltbot {instance} backup
 
 # Restore
-./scripts/restore-pepper.sh ~/.pepper-backups/<timestamp>/pepper-backup.tar.gz
+./scripts/moltbot {instance} restore ~/.{instance}-backups/<timestamp>/{instance}-backup.tar.gz
 
 # List backups
-ls -lh ~/.pepper-backups/
+ls -lh ~/.{instance}-backups/
 
-# Manual verification
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37 "sudo -u clawd ls -la ~/.clawdbot/"
+# Check instance status
+./scripts/moltbot {instance} status
+
+# Manual verification via SSH
+./scripts/moltbot {instance} ssh
+sudo -u clawd ls -la ~/.clawdbot/
+exit
 ```

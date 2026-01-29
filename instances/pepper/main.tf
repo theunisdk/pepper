@@ -1,9 +1,32 @@
+# Terraform configuration for moltbot instance: pepper
+# Migrated from terraform/environments/prod/
+
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+  }
+}
+
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
+  profile = var.aws_profile
 
   default_tags {
     tags = {
-      Project     = "moltbot"
+      Project     = "moltbot-pepper"
+      Instance    = "pepper"
       Environment = "prod"
       ManagedBy   = "terraform"
     }
@@ -11,19 +34,19 @@ provider "aws" {
 }
 
 module "moltbot" {
-  source = "../../modules/moltbot"
+  source = "../../terraform/modules/moltbot"
 
   # Required: Your allowed SSH IP
   allowed_ssh_cidr = var.allowed_ssh_cidr
 
   # Naming
-  project_name = "moltbot"
+  project_name = "moltbot-pepper"
   environment  = "prod"
 
   # Network
   aws_region               = var.aws_region
-  vpc_cidr                 = "10.100.0.0/16"
-  public_subnet_cidr       = "10.100.1.0/24"
+  vpc_cidr                 = var.vpc_cidr
+  public_subnet_cidr       = var.public_subnet_cidr
   availability_zone_suffix = "a"
 
   # EC2
@@ -33,14 +56,14 @@ module "moltbot" {
 
   # SSH Key
   create_ssh_key       = true
-  ssh_private_key_path = "~/.ssh/moltbot_key.pem"
-  ssh_public_key_path  = "~/.ssh/moltbot_key.pub"
+  ssh_private_key_path = var.ssh_private_key_path
+  ssh_public_key_path  = var.ssh_public_key_path
 
   # User Data
   enable_user_data = true
-  moltbot_user     = "clawd"
+  moltbot_user     = var.moltbot_user
   install_node     = true
-  install_moltbot  = true  # Installs CLI, user runs 'moltbot onboard' for config
+  install_moltbot  = true
 
   # Monitoring
   enable_detailed_monitoring = true
@@ -50,7 +73,7 @@ module "moltbot" {
   additional_tags = var.additional_tags
 }
 
-# Outputs from the module
+# Outputs
 output "instance_public_ip" {
   description = "Public IP address of the moltbot instance"
   value       = module.moltbot.instance_public_ip
@@ -72,6 +95,6 @@ output "gateway_local_url" {
 }
 
 output "security_reminder" {
-  description = "Important security reminders"
+  description = "Security best practices reminder"
   value       = module.moltbot.security_reminder
 }

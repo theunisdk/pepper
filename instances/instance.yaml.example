@@ -1,0 +1,42 @@
+# Moltbot Instance Configuration Template
+# Copy this file to instances/{name}/instance.yaml and customize
+
+name: example
+display_name: Example Bot
+
+# AWS Configuration
+aws:
+  profile: noldor
+  region: af-south-1
+
+# Instance Configuration
+instance:
+  type: t3.small
+  volume_size: 30
+
+# Moltbot Configuration
+moltbot:
+  user: clawd
+  gateway_port: 18789
+
+# SSH Configuration
+ssh:
+  key_name: example_key
+  key_path: ~/.ssh/example_key.pem
+  public_key_path: ~/.ssh/example_key.pub
+
+# Networking
+network:
+  allowed_ssh_cidr: "YOUR_IP/32"  # Set via terraform.tfvars
+  vpc_cidr: "10.100.0.0/16"
+  subnet_cidr: "10.100.1.0/24"
+
+# Paths (supports {name} placeholder)
+paths:
+  backup_dir: ~/.{name}-backups
+
+# Tags
+tags:
+  Owner: your-name
+  Project: moltbot-{name}
+  Environment: prod
