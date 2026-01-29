@@ -25,6 +25,15 @@ if ! id "${moltbot_user}" &>/dev/null; then
     chmod 440 /etc/sudoers.d/${moltbot_user}
 fi
 
+# Configure shell environment for the user (ensures /usr/local/bin is in PATH)
+cat >> /home/${moltbot_user}/.bashrc <<'BASHEOF'
+
+# Add /usr/local/bin to PATH (for system-wide binaries like moltbot)
+export PATH="/usr/local/bin:$PATH"
+BASHEOF
+
+chown ${moltbot_user}:${moltbot_user} /home/${moltbot_user}/.bashrc
+
 # Copy SSH authorized_keys from ubuntu user to new user
 mkdir -p /home/${moltbot_user}/.ssh
 cp /home/ubuntu/.ssh/authorized_keys /home/${moltbot_user}/.ssh/
@@ -147,17 +156,36 @@ echo "pnpm version: $(pnpm --version)"
 # -----------------------------------------------------------------------------
 echo ">>> Installing moltbot CLI..."
 
-# Install via official curl installer (the npm package 'moltbot' is just a placeholder)
-# The binary is called 'clawdbot' for now - see: https://docs.molt.bot/start/getting-started
-curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup || {
-  echo "curl installer failed"
-  exit 1
-}
-
-# Create 'moltbot' alias symlink (future-proof naming)
-ln -sf /usr/local/bin/clawdbot /usr/local/bin/moltbot
+# Install via official installer
+# The binary is called 'clawdbot' - see: https://docs.molt.bot/start/getting-started
+export HOME=/root
+if curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup; then
+  echo "Official installer succeeded"
+else
+  echo "Official installer failed, trying npm fallback..."
+  npm config set prefix /usr/local
+  npm install -g clawdbot@latest || {
+    echo "Both installation methods failed"
+    exit 1
+  }
+fi
 
 # Verify installation
+CLAWDBOT_PATH=$(which clawdbot 2>/dev/null)
+
+if [ -z "$CLAWDBOT_PATH" ]; then
+  echo "Error: clawdbot not found after installation"
+  exit 1
+fi
+
+echo "Found clawdbot at: $CLAWDBOT_PATH"
+
+# Create 'moltbot' alias symlink (future-proof naming)
+ln -sf "$CLAWDBOT_PATH" /usr/local/bin/moltbot
+
+# Verify installation
+echo "clawdbot location: $(which clawdbot)"
+echo "moltbot location: $(which moltbot)"
 echo "moltbot version: $(moltbot --version)"
 
 # Create workspace directory

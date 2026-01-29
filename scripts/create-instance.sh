@@ -153,7 +153,6 @@ module "moltbot" {
   # User Data
   enable_user_data = true
   moltbot_user     = var.moltbot_user
-  gateway_port     = var.gateway_port
   install_node     = true
   install_moltbot  = true
 

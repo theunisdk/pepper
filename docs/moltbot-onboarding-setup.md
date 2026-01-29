@@ -19,8 +19,18 @@ Throughout this guide, replace `{instance}` with your instance name (e.g., peppe
 
 ## Install Moltbot (if not already installed)
 
+The Terraform user_data script installs moltbot automatically. The actual binary is called `clawdbot`, but a `moltbot` symlink is created for convenience.
+
+Both commands work:
 ```bash
-sudo npm install -g moltbot@latest
+moltbot --version   # via symlink
+clawdbot --version  # actual binary
+```
+
+If you need to install manually:
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup
+sudo ln -sf /usr/local/bin/clawdbot /usr/local/bin/moltbot
 ```
 
 ## Switch to Moltbot User
@@ -34,6 +44,7 @@ sudo -u clawd -i
 
 ```bash
 moltbot onboard
+# Or: clawdbot onboard (same thing)
 ```
 
 Select **Manual** when asked for setup type - this gives you control over security settings.
