@@ -1,0 +1,150 @@
+{
+  "id": "gupshup",
+  "name": "Gupshup WhatsApp",
+  "version": "1.0.0",
+  "description": "WhatsApp Business API via Gupshup - official Meta partner",
+  "openclaw": {
+    "minVersion": "0.50.0",
+    "channel": true
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "description": "Gupshup API key from your dashboard",
+        "sensitive": true
+      },
+      "apiKeyFile": {
+        "type": "string",
+        "description": "Path to file containing API key (alternative to apiKey)"
+      },
+      "appId": {
+        "type": "string",
+        "description": "Gupshup WhatsApp App ID"
+      },
+      "sourcePhone": {
+        "type": "string",
+        "description": "Your WhatsApp Business phone number with country code (e.g., +1234567890)"
+      },
+      "businessName": {
+        "type": "string",
+        "description": "Business name shown to recipients",
+        "default": "Assistant"
+      },
+      "webhookSecret": {
+        "type": "string",
+        "description": "Optional secret for webhook signature validation",
+        "sensitive": true
+      },
+      "webhookPath": {
+        "type": "string",
+        "description": "HTTP path for incoming webhooks",
+        "default": "/webhooks/gupshup"
+      },
+      "dmPolicy": {
+        "type": "string",
+        "enum": ["open", "allowlist", "pairing"],
+        "description": "DM access control policy: open (anyone), allowlist (specific numbers), pairing (requires approval)",
+        "default": "open"
+      },
+      "allowFrom": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Phone numbers allowed to send messages (E.164 format, used when dmPolicy is 'allowlist')"
+      },
+      "templates": {
+        "type": "object",
+        "description": "Pre-approved WhatsApp message templates for use outside 24hr session window",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Template ID from Gupshup"
+            },
+            "paramCount": {
+              "type": "number",
+              "description": "Number of parameters the template accepts"
+            }
+          },
+          "required": ["id"]
+        }
+      },
+      "accounts": {
+        "type": "object",
+        "description": "Named accounts for multi-account setups",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "description": "Account-specific API key",
+              "sensitive": true
+            },
+            "apiKeyFile": {
+              "type": "string",
+              "description": "Path to file containing account API key"
+            },
+            "appId": {
+              "type": "string",
+              "description": "Account App ID"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "description": "Account phone number (E.164 format)"
+            },
+            "businessName": {
+              "type": "string",
+              "description": "Account business name"
+            },
+            "webhookSecret": {
+              "type": "string",
+              "description": "Account webhook secret",
+              "sensitive": true
+            },
+            "templates": {
+              "type": "object",
+              "description": "Account-specific templates"
+            }
+          },
+          "required": ["appId", "phoneNumber"]
+        }
+      },
+      "defaultAccount": {
+        "type": "string",
+        "description": "Default account name to use (if accounts defined)"
+      }
+    }
+  },
+  "uiHints": {
+    "apiKey": {
+      "label": "API Key",
+      "placeholder": "Enter your Gupshup API key"
+    },
+    "apiKeyFile": {
+      "label": "API Key File",
+      "placeholder": "~/.secrets/gupshup-api-key"
+    },
+    "appId": {
+      "label": "App ID",
+      "placeholder": "Your Gupshup WhatsApp app ID"
+    },
+    "sourcePhone": {
+      "label": "Phone Number",
+      "placeholder": "+1234567890"
+    },
+    "businessName": {
+      "label": "Business Name",
+      "placeholder": "My Assistant"
+    },
+    "dmPolicy": {
+      "label": "Access Control",
+      "description": "Who can send messages to your bot"
+    },
+    "allowFrom": {
+      "label": "Allowed Numbers",
+      "placeholder": "+1234567890, +0987654321"
+    }
+  }
+}
