@@ -1,0 +1,52 @@
+# Moltbot Docker Host Configuration
+# Multi-instance Docker host running multiple moltbot containers
+
+name: docker-host
+display_name: Moltbot Docker Host
+type: docker  # Indicates this is a Docker-based deployment
+
+# AWS Configuration
+aws:
+  profile: noldor
+  region: af-south-1
+
+# Host Instance Configuration (larger for running multiple containers)
+instance:
+  type: t3.medium    # 4GB RAM - good for 3-5 bots
+  volume_size: 50    # More storage for Docker images and volumes
+
+# Bots to deploy (each gets isolated Docker volumes)
+bots:
+  - name: pepper
+    port: 18789
+  - name: river
+    port: 18790
+  # Add more bots as needed:
+  # - name: alfred
+  #   port: 18791
+  # - name: jarvis
+  #   port: 18792
+  # - name: friday
+  #   port: 18793
+
+# SSH Configuration (single key for the host)
+ssh:
+  key_name: moltbot_docker_host_key
+  key_path: ~/.ssh/moltbot_docker_host_key.pem
+  public_key_path: ~/.ssh/moltbot_docker_host_key.pub
+
+# Networking
+network:
+  allowed_ssh_cidr: "196.45.30.215/32"  # UPDATE THIS to your IP
+  vpc_cidr: "10.200.0.0/16"
+  subnet_cidr: "10.200.1.0/24"
+
+# Paths
+paths:
+  backup_dir: ~/.moltbot-docker-backups
+
+# Tags
+tags:
+  Owner: theunisdk
+  Project: moltbot-docker-host
+  Environment: prod

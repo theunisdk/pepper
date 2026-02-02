@@ -1,6 +1,42 @@
 #!/bin/bash
 # Configuration loading for instances
 
+# Detect deployment type from instance config
+get_deployment_type() {
+    local config_file="$1"
+    local instance_type=$(parse_yaml "$config_file" "type")
+
+    if [[ "$instance_type" == "docker" ]]; then
+        echo "docker"
+    elif grep -q "^bots:" "$config_file" 2>/dev/null; then
+        echo "docker"
+    else
+        echo "single"
+    fi
+}
+
+# Parse bot configuration from YAML
+# Usage: parse_bot_config <config_file> <bot_name> <property>
+parse_bot_config() {
+    local config_file="$1"
+    local bot_name="$2"
+    local property="$3"
+
+    awk -v bot="$bot_name" -v prop="$property" '
+        /^bots:/ { in_bots=1; next }
+        in_bots && /^[a-z]/ && !/^  / { exit }
+        in_bots && /- name:/ {
+            gsub(/.*- name: */, "")
+            current_bot=$0
+        }
+        in_bots && current_bot==bot && $1==prop":" {
+            gsub(/.*: */, "")
+            print
+            exit
+        }
+    ' "$config_file"
+}
+
 # Parse simple YAML values (key: value format)
 parse_yaml() {
     local file="$1"
@@ -75,9 +111,20 @@ load_instance_config() {
     export INSTANCE_DIR="$PROJECT_ROOT/instances/$instance_name"
     export INSTANCE_CONFIG="$config_file"
 
-    # Parse configuration values
-    export MOLTBOT_USER=$(parse_yaml "$config_file" "moltbot.user")
-    export MOLTBOT_PORT=$(parse_yaml "$config_file" "moltbot.gateway_port")
+    # Detect deployment type
+    export DEPLOYMENT_TYPE=$(get_deployment_type "$config_file")
+
+    # Parse configuration values based on deployment type
+    if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
+        # Docker deployment - no single moltbot user/port
+        export MOLTBOT_USER=""
+        export MOLTBOT_PORT=""
+    else
+        # Single instance deployment
+        export MOLTBOT_USER=$(parse_yaml "$config_file" "moltbot.user")
+        export MOLTBOT_PORT=$(parse_yaml "$config_file" "moltbot.gateway_port")
+    fi
+
     export AWS_PROFILE=$(parse_yaml "$config_file" "aws.profile")
     export AWS_REGION=$(parse_yaml "$config_file" "aws.region")
 
@@ -96,7 +143,11 @@ load_instance_config() {
     # Get instance IP
     export MOLTBOT_HOST=$(get_instance_ip "$instance_name")
 
-    info "Loaded configuration for instance: ${CYAN}$instance_name${NC}"
+    if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
+        info "Loaded Docker host configuration: ${CYAN}$instance_name${NC}"
+    else
+        info "Loaded configuration for instance: ${CYAN}$instance_name${NC}"
+    fi
 
     return 0
 }

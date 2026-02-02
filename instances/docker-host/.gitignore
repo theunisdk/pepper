@@ -1,0 +1,8 @@
+# Terraform state (local)
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Variables file (contains sensitive values)
+terraform.tfvars

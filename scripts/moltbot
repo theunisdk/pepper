@@ -11,7 +11,6 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Source libraries
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/config.sh"
-source "$SCRIPT_DIR/lib/commands.sh"
 
 # Parse arguments
 if [[ $# -lt 1 ]]; then
@@ -46,30 +45,98 @@ if ! load_instance_config "$INSTANCE_NAME"; then
     exit 1
 fi
 
-# Execute command
-case "$COMMAND" in
-    terraform|tf)
-        exec_terraform "$@"
-        ;;
-    connect|admin)
-        exec_connect "$@"
-        ;;
-    backup)
-        exec_backup "$@"
-        ;;
-    restore)
-        exec_restore "$@"
-        ;;
-    ssh)
-        exec_ssh "$@"
-        ;;
-    status|info)
-        exec_status "$@"
-        ;;
-    *)
-        error "Unknown command: $COMMAND"
-        echo ""
-        show_usage
-        exit 1
-        ;;
-esac
+# Source appropriate commands library based on deployment type
+if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
+    source "$SCRIPT_DIR/lib/commands-docker.sh"
+else
+    source "$SCRIPT_DIR/lib/commands.sh"
+fi
+
+# Execute command based on deployment type
+if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
+    # Docker deployment commands
+    case "$COMMAND" in
+        terraform|tf)
+            exec_terraform "$@"
+            ;;
+        connect|admin)
+            exec_connect "$@"
+            ;;
+        backup)
+            exec_backup "$@"
+            ;;
+        restore)
+            exec_restore "$@"
+            ;;
+        ssh)
+            exec_ssh "$@"
+            ;;
+        shell|exec)
+            exec_shell "$@"
+            ;;
+        onboard)
+            exec_onboard "$@"
+            ;;
+        logs)
+            exec_logs "$@"
+            ;;
+        status|info)
+            exec_status "$@"
+            ;;
+        start)
+            exec_start "$@"
+            ;;
+        stop)
+            exec_stop "$@"
+            ;;
+        restart)
+            exec_restart "$@"
+            ;;
+        *)
+            error "Unknown command: $COMMAND"
+            echo ""
+            info "Available commands for Docker host:"
+            info "  terraform, tf   - Run Terraform commands"
+            info "  connect <bot>   - SSH tunnel to bot admin UI"
+            info "  backup [bot]    - Backup bot volumes"
+            info "  restore <bot>   - Restore bot from backup"
+            info "  ssh             - SSH to Docker host"
+            info "  shell <bot>     - Shell into bot container"
+            info "  onboard <bot>   - Run onboarding for a bot"
+            info "  logs [bot]      - View container logs"
+            info "  status          - Show host and container status"
+            info "  start [bot]     - Start containers"
+            info "  stop [bot]      - Stop containers"
+            info "  restart [bot]   - Restart containers"
+            exit 1
+            ;;
+    esac
+else
+    # Single instance commands
+    case "$COMMAND" in
+        terraform|tf)
+            exec_terraform "$@"
+            ;;
+        connect|admin)
+            exec_connect "$@"
+            ;;
+        backup)
+            exec_backup "$@"
+            ;;
+        restore)
+            exec_restore "$@"
+            ;;
+        ssh)
+            exec_ssh "$@"
+            ;;
+        status|info)
+            exec_status "$@"
+            ;;
+        *)
+            error "Unknown command: $COMMAND"
+            echo ""
+            show_usage
+            exit 1
+            ;;
+    esac
+fi
