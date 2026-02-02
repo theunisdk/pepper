@@ -1,0 +1,200 @@
+#!/bin/bash
+# Interactive Moltbot CLI
+# Provides menu-driven interface for managing moltbot instances
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/config.sh"
+
+# Colors
+BOLD="\033[1m"
+DIM="\033[2m"
+RESET="\033[0m"
+
+# Check for interactive selection tool
+select_tool=""
+if command -v gum &>/dev/null; then
+    select_tool="gum"
+elif command -v fzf &>/dev/null; then
+    select_tool="fzf"
+fi
+
+# Interactive selection function
+choose() {
+    local prompt="$1"
+    shift
+    local options=("$@")
+
+    if [[ "$select_tool" == "gum" ]]; then
+        printf '%s\n' "${options[@]}" | gum choose --header "$prompt"
+    elif [[ "$select_tool" == "fzf" ]]; then
+        printf '%s\n' "${options[@]}" | fzf --header "$prompt" --height=~50% --reverse
+    else
+        # Fallback to bash select
+        echo -e "\n${BOLD}$prompt${RESET}" >&2
+        PS3="Enter number: "
+        select opt in "${options[@]}"; do
+            if [[ -n "$opt" ]]; then
+                echo "$opt"
+                break
+            fi
+        done
+    fi
+}
+
+# Get list of instances
+get_instances() {
+    ls -1 "$PROJECT_ROOT/instances" 2>/dev/null | grep -v ".example" | grep -v "^$" || true
+}
+
+# Get list of bots for a Docker instance
+get_bots() {
+    local instance="$1"
+    local config="$PROJECT_ROOT/instances/$instance/instance.yaml"
+    if [[ -f "$config" ]]; then
+        awk '/^bots:/{flag=1; next} flag && /^[a-z]/{exit} flag && /^  - name:/{gsub(/.*- name: */, ""); print}' "$config"
+    fi
+}
+
+# Check if instance is Docker type
+is_docker_instance() {
+    local instance="$1"
+    local config="$PROJECT_ROOT/instances/$instance/instance.yaml"
+    if [[ -f "$config" ]]; then
+        if grep -q "^type: docker" "$config" 2>/dev/null || grep -q "^bots:" "$config" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Main menu
+main() {
+    clear
+    echo -e "${BOLD}╔════════════════════════════════════════╗${RESET}"
+    echo -e "${BOLD}║       MOLTBOT INTERACTIVE CLI          ║${RESET}"
+    echo -e "${BOLD}╚════════════════════════════════════════╝${RESET}"
+    echo ""
+
+    # Step 1: Select instance
+    local instances=($(get_instances))
+
+    if [[ ${#instances[@]} -eq 0 ]]; then
+        error "No instances found in $PROJECT_ROOT/instances/"
+        exit 1
+    fi
+
+    local instance=$(choose "Select instance:" "${instances[@]}")
+
+    if [[ -z "$instance" ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+
+    echo -e "Selected: ${CYAN}$instance${RESET}"
+    echo ""
+
+    # Step 2: For Docker instances, optionally select a bot
+    local bot=""
+    local is_docker=false
+
+    if is_docker_instance "$instance"; then
+        is_docker=true
+        local bots=($(get_bots "$instance"))
+
+        # Docker-specific commands
+        local commands=(
+            "status     - Show host and container status"
+            "connect    - SSH tunnel to bot admin UI"
+            "logs       - View container logs"
+            "shell      - Shell into bot container"
+            "onboard    - Run onboarding for a bot"
+            "start      - Start containers"
+            "stop       - Stop containers"
+            "restart    - Restart containers"
+            "backup     - Backup bot volumes"
+            "restore    - Restore bot from backup"
+            "ssh        - SSH to Docker host"
+            "terraform  - Run Terraform commands"
+        )
+
+        local action_line=$(choose "Select action:" "${commands[@]}")
+        local action=$(echo "$action_line" | awk '{print $1}')
+
+        if [[ -z "$action" ]]; then
+            echo "Cancelled."
+            exit 0
+        fi
+
+        # Commands that need a bot selection
+        case "$action" in
+            connect|shell|onboard|logs|start|stop|restart)
+                if [[ ${#bots[@]} -gt 0 ]]; then
+                    local bot_options=("${bots[@]}")
+                    # For some commands, add "all" option
+                    if [[ "$action" =~ ^(logs|start|stop|restart|backup)$ ]]; then
+                        bot_options=("(all)" "${bots[@]}")
+                    fi
+
+                    bot=$(choose "Select bot:" "${bot_options[@]}")
+
+                    if [[ "$bot" == "(all)" ]]; then
+                        bot=""
+                    fi
+                fi
+                ;;
+            backup)
+                local bot_options=("(all)" "${bots[@]}")
+                bot=$(choose "Select bot to backup:" "${bot_options[@]}")
+                if [[ "$bot" == "(all)" ]]; then
+                    bot=""
+                fi
+                ;;
+            restore)
+                bot=$(choose "Select bot to restore:" "${bots[@]}")
+                ;;
+        esac
+
+        echo ""
+        echo -e "${DIM}Running: moltbot $instance $action $bot${RESET}"
+        echo ""
+
+        # Execute command
+        exec "$SCRIPT_DIR/moltbot" "$instance" "$action" $bot
+
+    else
+        # Single instance commands
+        local commands=(
+            "status     - Show instance status"
+            "connect    - SSH tunnel to admin UI"
+            "backup     - Backup instance"
+            "restore    - Restore from backup"
+            "ssh        - SSH to instance"
+            "terraform  - Run Terraform commands"
+        )
+
+        local action_line=$(choose "Select action:" "${commands[@]}")
+        local action=$(echo "$action_line" | awk '{print $1}')
+
+        if [[ -z "$action" ]]; then
+            echo "Cancelled."
+            exit 0
+        fi
+
+        echo ""
+        echo -e "${DIM}Running: moltbot $instance $action${RESET}"
+        echo ""
+
+        # Execute command
+        exec "$SCRIPT_DIR/moltbot" "$instance" "$action"
+    fi
+}
+
+# Handle Ctrl+C gracefully
+trap 'echo ""; echo "Cancelled."; exit 0' INT
+
+main "$@"
