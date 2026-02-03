@@ -12,7 +12,7 @@ services:
     ports:
       - "127.0.0.1:${bot.port}:18789"
     volumes:
-      - ${bot.name}-config:/home/clawd/.clawdbot
+      - ${bot.name}-config:/home/clawd/.openclaw
       - ${bot.name}-gog:/home/clawd/.gog
       - ${bot.name}-workspace:/home/clawd/openclaw
     environment:

@@ -1,0 +1,48 @@
+# OpenClaw Local Docker Testing
+# Use: docker compose -f docker/docker-compose.local.yml up -d
+
+services:
+  iris:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openclaw-local:latest
+    container_name: openclaw-iris
+    restart: unless-stopped
+    command: ["gateway", "run", "--bind", "lan", "--port", "18789", "--allow-unconfigured", "--dev", "--verbose"]
+    ports:
+      - "127.0.0.1:18791:18789"
+    volumes:
+      - iris-config:/home/clawd/.openclaw
+      - iris-gog:/home/clawd/.gog
+      - iris-workspace:/home/clawd/openclaw
+    environment:
+      - NODE_ENV=development
+      - OPENCLAW_INSTANCE=iris
+      - OPENCLAW_PORT=18789
+    networks:
+      - openclaw-network
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:18789/health", "||", "exit", "0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  iris-config:
+    name: openclaw_iris-config
+  iris-gog:
+    name: openclaw_iris-gog
+  iris-workspace:
+    name: openclaw_iris-workspace
+
+networks:
+  openclaw-network:
+    driver: bridge
+    name: openclaw-network

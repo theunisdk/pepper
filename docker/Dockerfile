@@ -17,8 +17,11 @@ RUN useradd -m -s /bin/bash clawd
 RUN curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-setup 2>/dev/null || \
     npm install -g openclaw@latest
 
-# Create data directories
-RUN mkdir -p /home/clawd/.clawdbot /home/clawd/.gog /home/clawd/openclaw && \
+# Create data directories and remove legacy .clawdbot if created by installer
+# Note: upstream openclaw migrated from .clawdbot to .openclaw
+# We must remove .clawdbot to avoid cross-device migration errors with volumes
+RUN rm -rf /home/clawd/.clawdbot && \
+    mkdir -p /home/clawd/.openclaw /home/clawd/.gog /home/clawd/openclaw && \
     chown -R clawd:clawd /home/clawd
 
 # Switch to non-root user
