@@ -5,16 +5,16 @@
 # -----------------------------------------------------------------------------
 
 # Generate TLS private key if creating new key pair
-resource "tls_private_key" "moltbot" {
+resource "tls_private_key" "openclaw" {
   count     = var.create_ssh_key ? 1 : 0
   algorithm = "ED25519"
 }
 
 # Create AWS key pair from generated key
-resource "aws_key_pair" "moltbot" {
+resource "aws_key_pair" "openclaw" {
   count      = var.create_ssh_key ? 1 : 0
   key_name   = "${local.name_prefix}-key"
-  public_key = tls_private_key.moltbot[0].public_key_openssh
+  public_key = tls_private_key.openclaw[0].public_key_openssh
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-key"
@@ -24,7 +24,7 @@ resource "aws_key_pair" "moltbot" {
 # Save private key locally (with secure permissions)
 resource "local_sensitive_file" "private_key" {
   count           = var.create_ssh_key ? 1 : 0
-  content         = tls_private_key.moltbot[0].private_key_openssh
+  content         = tls_private_key.openclaw[0].private_key_openssh
   filename        = pathexpand(var.ssh_private_key_path)
   file_permission = "0400"
 }
@@ -32,7 +32,7 @@ resource "local_sensitive_file" "private_key" {
 # Save public key locally
 resource "local_file" "public_key" {
   count           = var.create_ssh_key ? 1 : 0
-  content         = tls_private_key.moltbot[0].public_key_openssh
+  content         = tls_private_key.openclaw[0].public_key_openssh
   filename        = pathexpand(var.ssh_public_key_path)
   file_permission = "0644"
 }
@@ -42,13 +42,13 @@ resource "local_file" "public_key" {
 # Ubuntu 22.04 LTS with security hardening
 # -----------------------------------------------------------------------------
 
-resource "aws_instance" "moltbot" {
+resource "aws_instance" "openclaw" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
-  key_name                    = var.create_ssh_key ? aws_key_pair.moltbot[0].key_name : var.existing_key_name
-  vpc_security_group_ids      = [aws_security_group.moltbot.id]
+  key_name                    = var.create_ssh_key ? aws_key_pair.openclaw[0].key_name : var.existing_key_name
+  vpc_security_group_ids      = [aws_security_group.openclaw.id]
   subnet_id                   = aws_subnet.public.id
-  iam_instance_profile        = aws_iam_instance_profile.moltbot.name
+  iam_instance_profile        = aws_iam_instance_profile.openclaw.name
   monitoring                  = var.enable_detailed_monitoring
   associate_public_ip_address = true
 
@@ -70,10 +70,10 @@ resource "aws_instance" "moltbot" {
 
   # User data for initial setup and hardening
   user_data = var.enable_user_data ? templatefile("${path.module}/user_data/init.sh.tftpl", {
-    moltbot_user    = var.moltbot_user
-    install_node    = var.install_node
-    install_moltbot = var.install_moltbot
-    gateway_port    = local.gateway_port
+    openclaw_user    = var.openclaw_user
+    install_node     = var.install_node
+    install_openclaw = var.install_openclaw
+    gateway_port     = local.gateway_port
   }) : null
 
   user_data_replace_on_change = false
@@ -95,8 +95,8 @@ resource "aws_instance" "moltbot" {
 # ELASTIC IP (provides stable public IP)
 # -----------------------------------------------------------------------------
 
-resource "aws_eip" "moltbot" {
-  instance = aws_instance.moltbot.id
+resource "aws_eip" "openclaw" {
+  instance = aws_instance.openclaw.id
   domain   = "vpc"
 
   tags = merge(local.common_tags, {

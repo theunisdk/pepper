@@ -43,13 +43,13 @@ variable "ssh_public_key_path" {
   type        = string
 }
 
-variable "moltbot_user" {
-  description = "Non-root user for running moltbot"
+variable "openclaw_user" {
+  description = "Non-root user for running OpenClaw"
   type        = string
 }
 
 variable "gateway_port" {
-  description = "Moltbot gateway port"
+  description = "OpenClaw gateway port"
   type        = number
   default     = 18789
 }

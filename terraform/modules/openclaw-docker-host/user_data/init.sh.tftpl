@@ -4,7 +4,7 @@ set -euo pipefail
 # Log all output for debugging
 exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
 
-echo "=== Starting moltbot Docker host initialization ==="
+echo "=== Starting OpenClaw Docker host initialization ==="
 echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # -----------------------------------------------------------------------------
@@ -122,22 +122,22 @@ echo "Docker version: $(docker --version)"
 echo "Docker Compose version: $(docker compose version)"
 
 # -----------------------------------------------------------------------------
-# SETUP MOLTBOT DOCKER STACK
+# SETUP OPENCLAW DOCKER STACK
 # -----------------------------------------------------------------------------
-echo ">>> Setting up moltbot Docker stack..."
+echo ">>> Setting up OpenClaw Docker stack..."
 
-# Create moltbot directory
-mkdir -p /opt/moltbot
+# Create openclaw directory
+mkdir -p /opt/openclaw
 
 # Write docker-compose.yml from Terraform template
-cat > /opt/moltbot/docker-compose.yml <<'COMPOSEEOF'
+cat > /opt/openclaw/docker-compose.yml <<'COMPOSEEOF'
 ${docker_compose_content}
 COMPOSEEOF
 
 # Copy Dockerfile for local builds
-mkdir -p /opt/moltbot/build
-cat > /opt/moltbot/build/Dockerfile <<'DOCKEREOF'
-# Moltbot Docker Image
+mkdir -p /opt/openclaw/build
+cat > /opt/openclaw/build/Dockerfile <<'DOCKEREOF'
+# OpenClaw Docker Image
 FROM node:24-slim
 
 # Install dependencies
@@ -149,46 +149,43 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create non-root user
 RUN useradd -m -s /bin/bash clawd
 
-# Install moltbot globally
-RUN curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup 2>/dev/null || \
-    npm install -g clawdbot@latest
-
-# Create symlink
-RUN ln -sf $(which clawdbot || echo /usr/local/bin/clawdbot) /usr/local/bin/moltbot
+# Install openclaw globally
+RUN curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-setup 2>/dev/null || \
+    npm install -g openclaw@latest
 
 # Create data directories
-RUN mkdir -p /home/clawd/.clawdbot /home/clawd/.gog /home/clawd/moltbot && \
+RUN mkdir -p /home/clawd/.clawdbot /home/clawd/.gog /home/clawd/openclaw && \
     chown -R clawd:clawd /home/clawd
 
 # Switch to non-root user
 USER clawd
-WORKDIR /home/clawd/moltbot
+WORKDIR /home/clawd/openclaw
 
-ENV MOLTBOT_PORT=18789
+ENV OPENCLAW_PORT=18789
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -sf http://127.0.0.1:$${MOLTBOT_PORT}/health || exit 1
+    CMD curl -sf http://127.0.0.1:$${OPENCLAW_PORT}/health || exit 1
 
-ENTRYPOINT ["moltbot"]
+ENTRYPOINT ["openclaw"]
 CMD ["gateway", "--bind", "loopback", "--port", "18789"]
 DOCKEREOF
 
 # Build local image
-echo ">>> Building moltbot Docker image..."
-cd /opt/moltbot/build
-docker build -t moltbot-local .
+echo ">>> Building OpenClaw Docker image..."
+cd /opt/openclaw/build
+docker build -t openclaw-local .
 
 # Set ownership
-chown -R ubuntu:ubuntu /opt/moltbot
+chown -R ubuntu:ubuntu /opt/openclaw
 
 # -----------------------------------------------------------------------------
 # CREATE SYSTEMD SERVICE
 # -----------------------------------------------------------------------------
 echo ">>> Creating systemd service for Docker Compose..."
 
-cat > /etc/systemd/system/moltbot-docker.service <<'SVCEOF'
+cat > /etc/systemd/system/openclaw-docker.service <<'SVCEOF'
 [Unit]
-Description=Moltbot Docker Compose Stack
+Description=OpenClaw Docker Compose Stack
 Requires=docker.service
 After=docker.service
 
@@ -196,7 +193,7 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=yes
 User=ubuntu
-WorkingDirectory=/opt/moltbot
+WorkingDirectory=/opt/openclaw
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
 ExecReload=/usr/bin/docker compose up -d --force-recreate
@@ -207,44 +204,44 @@ WantedBy=multi-user.target
 SVCEOF
 
 systemctl daemon-reload
-systemctl enable moltbot-docker
+systemctl enable openclaw-docker
 
 # -----------------------------------------------------------------------------
 # CREATE HELPER SCRIPTS
 # -----------------------------------------------------------------------------
 echo ">>> Creating helper scripts..."
 
-# moltbot-logs: View logs for all or specific bot
-cat > /usr/local/bin/moltbot-logs <<'LOGSEOF'
+# openclaw-logs: View logs for all or specific bot
+cat > /usr/local/bin/openclaw-logs <<'LOGSEOF'
 #!/bin/bash
 BOT=$${1:-}
 if [ -z "$BOT" ]; then
-    docker compose -f /opt/moltbot/docker-compose.yml logs -f
+    docker compose -f /opt/openclaw/docker-compose.yml logs -f
 else
-    docker compose -f /opt/moltbot/docker-compose.yml logs -f "$BOT"
+    docker compose -f /opt/openclaw/docker-compose.yml logs -f "$BOT"
 fi
 LOGSEOF
-chmod +x /usr/local/bin/moltbot-logs
+chmod +x /usr/local/bin/openclaw-logs
 
-# moltbot-exec: Execute command in bot container
-cat > /usr/local/bin/moltbot-exec <<'EXECEOF'
+# openclaw-exec: Execute command in bot container
+cat > /usr/local/bin/openclaw-exec <<'EXECEOF'
 #!/bin/bash
 BOT=$${1:-}
 if [ -z "$BOT" ]; then
-    echo "Usage: moltbot-exec <bot-name> [command]"
+    echo "Usage: openclaw-exec <bot-name> [command]"
     echo "Available bots: ${bot_names}"
     exit 1
 fi
 shift
-docker compose -f /opt/moltbot/docker-compose.yml exec "$BOT" "$${@:-bash}"
+docker compose -f /opt/openclaw/docker-compose.yml exec "$BOT" "$${@:-bash}"
 EXECEOF
-chmod +x /usr/local/bin/moltbot-exec
+chmod +x /usr/local/bin/openclaw-exec
 
-# moltbot-status: Show status of all bots
-cat > /usr/local/bin/moltbot-status <<'STATUSEOF'
+# openclaw-status: Show status of all bots
+cat > /usr/local/bin/openclaw-status <<'STATUSEOF'
 #!/bin/bash
 echo "=== Container Status ==="
-docker compose -f /opt/moltbot/docker-compose.yml ps
+docker compose -f /opt/openclaw/docker-compose.yml ps
 
 echo ""
 echo "=== Resource Usage ==="
@@ -252,34 +249,34 @@ docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 
 echo ""
 echo "=== Volume Usage ==="
-docker system df -v 2>/dev/null | grep moltbot || echo "No moltbot volumes found"
+docker system df -v 2>/dev/null | grep openclaw || echo "No openclaw volumes found"
 STATUSEOF
-chmod +x /usr/local/bin/moltbot-status
+chmod +x /usr/local/bin/openclaw-status
 
-# moltbot-onboard: Run onboarding for a bot
-cat > /usr/local/bin/moltbot-onboard <<'ONBOARDEOF'
+# openclaw-onboard: Run onboarding for a bot
+cat > /usr/local/bin/openclaw-onboard <<'ONBOARDEOF'
 #!/bin/bash
 BOT=$${1:-}
 if [ -z "$BOT" ]; then
-    echo "Usage: moltbot-onboard <bot-name>"
+    echo "Usage: openclaw-onboard <bot-name>"
     echo "Available bots: ${bot_names}"
     exit 1
 fi
-docker compose -f /opt/moltbot/docker-compose.yml exec -it "$BOT" moltbot onboard
+docker compose -f /opt/openclaw/docker-compose.yml exec -it "$BOT" openclaw onboard
 ONBOARDEOF
-chmod +x /usr/local/bin/moltbot-onboard
+chmod +x /usr/local/bin/openclaw-onboard
 
-# moltbot-backup: Backup bot volumes
-cat > /usr/local/bin/moltbot-backup <<'BACKUPEOF'
+# openclaw-backup: Backup bot volumes
+cat > /usr/local/bin/openclaw-backup <<'BACKUPEOF'
 #!/bin/bash
 BOT=$${1:-}
-BACKUP_DIR="/tmp/moltbot-backup-$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="/tmp/openclaw-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
 if [ -z "$BOT" ]; then
-    VOLUMES=$(docker volume ls --format '{{.Name}}' | grep '^moltbot_')
+    VOLUMES=$(docker volume ls --format '{{.Name}}' | grep '^openclaw_')
 else
-    VOLUMES=$(docker volume ls --format '{{.Name}}' | grep "^moltbot_$BOT")
+    VOLUMES=$(docker volume ls --format '{{.Name}}' | grep "^openclaw_$BOT")
 fi
 
 for vol in $VOLUMES; do
@@ -293,47 +290,47 @@ done
 echo "Backup complete: $BACKUP_DIR"
 ls -la "$BACKUP_DIR"
 BACKUPEOF
-chmod +x /usr/local/bin/moltbot-backup
+chmod +x /usr/local/bin/openclaw-backup
 
 # -----------------------------------------------------------------------------
 # START CONTAINERS (if auto_start is true)
 # -----------------------------------------------------------------------------
 %{ if auto_start }
-echo ">>> Starting moltbot containers..."
-systemctl start moltbot-docker
+echo ">>> Starting OpenClaw containers..."
+systemctl start openclaw-docker
 %{ else }
-echo ">>> Containers not auto-started. Run 'sudo systemctl start moltbot-docker' to start."
+echo ">>> Containers not auto-started. Run 'sudo systemctl start openclaw-docker' to start."
 %{ endif }
 
 # -----------------------------------------------------------------------------
 # CREATE MOTD
 # -----------------------------------------------------------------------------
-cat > /etc/update-motd.d/99-moltbot-docker <<'MOTDEOF'
+cat > /etc/update-motd.d/99-openclaw-docker <<'MOTDEOF'
 #!/bin/bash
 echo ""
 echo "=========================================="
-echo "  MOLTBOT DOCKER HOST READY"
+echo "  OPENCLAW DOCKER HOST READY"
 echo "=========================================="
 echo ""
 echo "Deployed bots: ${bot_names}"
 echo ""
 echo "Quick commands:"
-echo "  moltbot-status         - Show all container status"
-echo "  moltbot-logs [bot]     - View logs (all or specific bot)"
-echo "  moltbot-exec <bot>     - Shell into bot container"
-echo "  moltbot-onboard <bot>  - Run onboarding for a bot"
-echo "  moltbot-backup [bot]   - Backup volumes"
+echo "  openclaw-status         - Show all container status"
+echo "  openclaw-logs [bot]     - View logs (all or specific bot)"
+echo "  openclaw-exec <bot>     - Shell into bot container"
+echo "  openclaw-onboard <bot>  - Run onboarding for a bot"
+echo "  openclaw-backup [bot]   - Backup volumes"
 echo ""
 echo "Service management:"
-echo "  sudo systemctl start moltbot-docker    - Start all bots"
-echo "  sudo systemctl stop moltbot-docker     - Stop all bots"
-echo "  sudo systemctl restart moltbot-docker  - Restart all bots"
+echo "  sudo systemctl start openclaw-docker    - Start all bots"
+echo "  sudo systemctl stop openclaw-docker     - Stop all bots"
+echo "  sudo systemctl restart openclaw-docker  - Restart all bots"
 echo ""
 echo "Access gateway via SSH tunnel (from your local machine):"
 echo "  ssh -i <key> -L <port>:127.0.0.1:<port> ubuntu@<this-ip> -N"
 echo ""
 MOTDEOF
-chmod +x /etc/update-motd.d/99-moltbot-docker
+chmod +x /etc/update-motd.d/99-openclaw-docker
 
 # -----------------------------------------------------------------------------
 # FINAL CLEANUP
@@ -346,4 +343,4 @@ echo "=== Docker host initialization complete ==="
 echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # Create marker file to indicate successful initialization
-touch /var/lib/cloud/instance/moltbot-docker-init-complete
+touch /var/lib/cloud/instance/openclaw-docker-init-complete

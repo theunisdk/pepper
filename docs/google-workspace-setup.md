@@ -1,6 +1,6 @@
-# Google Workspace Setup for Moltbot
+# Google Workspace Setup for OpenClaw
 
-This guide shows how to set up Gmail, Calendar, and Drive access for your moltbot instance using a dedicated Google account.
+This guide shows how to set up Gmail, Calendar, and Drive access for your OpenClaw instance using a dedicated Google account.
 
 Throughout this guide, replace `{instance}` with your instance name (e.g., pepper, alfred, jarvis).
 
@@ -9,7 +9,7 @@ Throughout this guide, replace `{instance}` with your instance name (e.g., peppe
 ```
 Your Personal Gmail → Forward rules → Bot's Gmail
                                       ↓
-                                   Moltbot reads/processes
+                                   OpenClaw reads/processes
                                       ↓
                                    Responds via Telegram
 
@@ -39,7 +39,7 @@ Your Calendar → Subscribe link → Bot's Calendar (read-only view)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Click **Select a project** → **New Project**
-3. Name: `{Instance} Moltbot` (e.g., "Pepper Moltbot")
+3. Name: `{Instance} OpenClaw` (e.g., "Pepper Moltbot")
 4. Click **Create**
 
 ### Step 2: Enable APIs
@@ -55,7 +55,7 @@ Your Calendar → Subscribe link → Bot's Calendar (read-only view)
 1. Go to **APIs & Services → OAuth consent screen**
 2. Select **External** user type → **Create**
 3. Fill in:
-   - App name: `{Instance} Moltbot` (e.g., "Pepper Moltbot")
+   - App name: `{Instance} OpenClaw` (e.g., "Pepper Moltbot")
    - User support email: your email
    - Developer contact: your email
 4. Click **Save and Continue**
@@ -105,9 +105,9 @@ SSH to your instance and install the Google Workspace CLI:
 
 ```bash
 # Connect to EC2
-./scripts/moltbot {instance} ssh
+./scripts/pepper {instance} ssh
 
-# Switch to clawd user (or your configured moltbot_user)
+# Switch to clawd user (or your configured openclaw_user)
 sudo -u clawd -i
 
 # Install gog CLI globally
@@ -127,7 +127,7 @@ From your local machine:
 
 ```bash
 # Get instance IP
-INSTANCE_IP=$(./scripts/moltbot {instance} terraform output -raw instance_public_ip)
+INSTANCE_IP=$(./scripts/pepper {instance} terraform output -raw instance_public_ip)
 
 # Upload the JSON credentials file
 scp -i ~/.ssh/{instance}_key.pem ~/Downloads/{instance}-credentials.json ubuntu@$INSTANCE_IP:/tmp/
@@ -155,7 +155,7 @@ gog calendar list
 gog drive list
 ```
 
-### Configure Moltbot
+### Configure OpenClaw
 
 Add to `~/.clawdbot/.env`:
 
@@ -180,15 +180,15 @@ Or edit `~/.clawdbot/clawdbot.json`:
 }
 ```
 
-### Restart Moltbot
+### Restart OpenClaw
 
 ```bash
 # Exit clawd user
 exit
 
 # Restart service
-sudo systemctl restart moltbot
-sudo systemctl status moltbot
+sudo systemctl restart openclaw
+sudo systemctl status openclaw
 ```
 
 ---
@@ -278,7 +278,7 @@ List my recent files
 
 1. **OAuth Token Storage**: Tokens are stored in `~/.clawdbot/` and `~/.gog/` - never commit these
 2. **Revoke Access**: Go to [Google Account Permissions](https://myaccount.google.com/permissions) to revoke if needed
-3. **IP Restriction**: Optionally restrict API keys to your EC2 instance IP (get via `./scripts/moltbot {instance} terraform output instance_public_ip`)
+3. **IP Restriction**: Optionally restrict API keys to your EC2 instance IP (get via `./scripts/pepper {instance} terraform output instance_public_ip`)
 4. **Rotation**: Periodically delete and recreate OAuth tokens (every 6-12 months)
 5. **Monitoring**: Check your bot's Gmail regularly for unexpected access
 
@@ -322,7 +322,7 @@ If you want Pepper to access multiple personal accounts:
 gog auth add personal@gmail.com
 gog auth add work@company.com
 
-# Configure in moltbot
+# Configure in OpenClaw
 GOG_ACCOUNTS=personal@gmail.com,work@company.com
 ```
 

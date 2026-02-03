@@ -1,6 +1,6 @@
 # Gemini API Key Setup & Security
 
-This guide covers creating a locked-down Gemini API key for use with moltbot.
+This guide covers creating a locked-down Gemini API key for use with OpenClaw.
 
 ## Create API Key
 
@@ -90,19 +90,19 @@ If you can't find "Generative Language API" in the restriction dropdown:
 - Rotate keys periodically
 - Monitor usage in Google Cloud Console
 - Use separate keys for different environments (dev/prod)
-- Store the key securely on the server (moltbot config handles this)
+- Store the key securely on the server (OpenClaw config handles this)
 
-## Updating the Key in Moltbot
+## Updating the Key in OpenClaw
 
 If you need to update the API key later:
 
 ```bash
 # SSH to your instance
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@13.247.25.37
+ssh -i ~/.ssh/openclaw_key.pem ubuntu@13.247.25.37
 
 # Switch to clawd user
 sudo -u clawd -i
 
 # Update the configuration
-moltbot configure
+openclaw configure
 ```

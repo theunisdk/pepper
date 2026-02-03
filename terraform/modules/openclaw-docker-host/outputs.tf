@@ -105,19 +105,19 @@ output "docker_commands" {
       ssh -i ${var.create_ssh_key ? pathexpand(var.ssh_private_key_path) : "<your-key.pem>"} ubuntu@${aws_eip.docker_host.public_ip}
 
     View all containers:
-      docker compose -f /opt/moltbot/docker-compose.yml ps
+      docker compose -f /opt/openclaw/docker-compose.yml ps
 
     View logs (all bots):
-      docker compose -f /opt/moltbot/docker-compose.yml logs -f
+      docker compose -f /opt/openclaw/docker-compose.yml logs -f
 
     View logs (specific bot):
-      docker compose -f /opt/moltbot/docker-compose.yml logs -f <bot-name>
+      docker compose -f /opt/openclaw/docker-compose.yml logs -f <bot-name>
 
     Restart a bot:
-      docker compose -f /opt/moltbot/docker-compose.yml restart <bot-name>
+      docker compose -f /opt/openclaw/docker-compose.yml restart <bot-name>
 
     Shell into a bot container:
-      docker compose -f /opt/moltbot/docker-compose.yml exec <bot-name> bash
+      docker compose -f /opt/openclaw/docker-compose.yml exec <bot-name> bash
 
     Resource usage:
       docker stats
@@ -135,7 +135,7 @@ output "security_reminder" {
     1. All container ports (18789-18799) are bound to 127.0.0.1 - use SSH tunnel
     2. SSH is restricted to: ${var.allowed_ssh_cidr}
     3. Each bot has isolated Docker volumes for data separation
-    4. Use 'moltbot onboard' inside each container for initial setup
+    4. Use 'openclaw onboard' inside each container for initial setup
     5. Configure API keys with minimal permissions
   EOT
 }

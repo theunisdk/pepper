@@ -1,6 +1,6 @@
 #!/bin/bash
-# Moltbot Multi-Instance Manager
-# Usage: moltbot <instance> <command> [args...]
+# Pepper - OpenClaw Instance Manager
+# Usage: pepper <instance> <command> [args...]
 
 set -euo pipefail
 

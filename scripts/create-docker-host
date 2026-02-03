@@ -1,6 +1,6 @@
 #!/bin/bash
 # Create Docker Host Wizard
-# Interactive setup for new moltbot Docker host instances
+# Interactive setup for new OpenClaw Docker host instances
 
 set -euo pipefail
 
@@ -158,7 +158,7 @@ main() {
     clear
     echo -e "${BOLD}╔════════════════════════════════════════════════════════╗${RESET}"
     echo -e "${BOLD}║          CREATE DOCKER HOST WIZARD                     ║${RESET}"
-    echo -e "${BOLD}║   Set up a new EC2 instance with multiple moltbots     ║${RESET}"
+    echo -e "${BOLD}║   Set up a new EC2 instance with OpenClaw bots         ║${RESET}"
     echo -e "${BOLD}╚════════════════════════════════════════════════════════╝${RESET}"
     echo ""
 
@@ -465,7 +465,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "moltbot-$instance_name"
+      Project     = "openclaw-$instance_name"
       Instance    = "$instance_name"
       Environment = "prod"
       ManagedBy   = "terraform"
@@ -474,13 +474,13 @@ provider "aws" {
 }
 
 module "docker_host" {
-  source = "../../terraform/modules/moltbot-docker-host"
+  source = "../../terraform/modules/openclaw-docker-host"
 
   # Required
   allowed_ssh_cidr = var.allowed_ssh_cidr
 
   # Naming
-  project_name = "moltbot-$instance_name"
+  project_name = "openclaw-$instance_name"
   environment  = "prod"
 
   # Network
@@ -502,7 +502,7 @@ module "docker_host" {
   bots = var.bots
 
   # Docker
-  docker_image = "moltbot-local"
+  docker_image = "openclaw-local"
   auto_start   = true
 
   # Monitoring
@@ -643,22 +643,22 @@ EOF
     echo -e "${BOLD}Next steps:${RESET}"
     echo ""
     echo "  1. Initialize Terraform:"
-    echo -e "     ${CYAN}./scripts/moltbot $instance_name terraform init${RESET}"
+    echo -e "     ${CYAN}./scripts/pepper $instance_name terraform init${RESET}"
     echo ""
     echo "  2. Review and apply:"
-    echo -e "     ${CYAN}./scripts/moltbot $instance_name terraform plan${RESET}"
-    echo -e "     ${CYAN}./scripts/moltbot $instance_name terraform apply${RESET}"
+    echo -e "     ${CYAN}./scripts/pepper $instance_name terraform plan${RESET}"
+    echo -e "     ${CYAN}./scripts/pepper $instance_name terraform apply${RESET}"
     echo ""
     echo "  3. Onboard each bot:"
     for bot in "${bots[@]}"; do
-        echo -e "     ${CYAN}./scripts/moltbot $instance_name onboard $bot${RESET}"
+        echo -e "     ${CYAN}./scripts/pepper $instance_name onboard $bot${RESET}"
     done
     echo ""
     echo "  4. Connect to a bot:"
-    echo -e "     ${CYAN}./scripts/moltbot $instance_name connect ${bots[0]}${RESET}"
+    echo -e "     ${CYAN}./scripts/pepper $instance_name connect ${bots[0]}${RESET}"
     echo ""
     echo "  Or use the interactive CLI:"
-    echo -e "     ${CYAN}./scripts/moltbot-interactive${RESET}"
+    echo -e "     ${CYAN}./scripts/pepper-interactive${RESET}"
     echo ""
 }
 

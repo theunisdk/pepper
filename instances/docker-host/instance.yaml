@@ -1,8 +1,8 @@
-# Moltbot Docker Host Configuration
-# Multi-instance Docker host running multiple moltbot containers
+# OpenClaw Docker Host Configuration
+# Multi-instance Docker host running multiple OpenClaw containers
 
 name: docker-host
-display_name: Moltbot Docker Host
+display_name: OpenClaw Docker Host
 type: docker  # Indicates this is a Docker-based deployment
 
 # AWS Configuration
@@ -31,9 +31,9 @@ bots:
 
 # SSH Configuration (single key for the host)
 ssh:
-  key_name: moltbot_docker_host_key
-  key_path: ~/.ssh/moltbot_docker_host_key.pem
-  public_key_path: ~/.ssh/moltbot_docker_host_key.pub
+  key_name: openclaw_docker_host_key
+  key_path: ~/.ssh/openclaw_docker_host_key.pem
+  public_key_path: ~/.ssh/openclaw_docker_host_key.pub
 
 # Networking
 network:
@@ -43,10 +43,10 @@ network:
 
 # Paths
 paths:
-  backup_dir: ~/.moltbot-docker-backups
+  backup_dir: ~/.openclaw-docker-backups
 
 # Tags
 tags:
   Owner: theunisdk
-  Project: moltbot-docker-host
+  Project: openclaw-docker-host
   Environment: prod

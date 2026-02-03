@@ -3,7 +3,7 @@
 # Allows SSM access and CloudWatch logging
 # -----------------------------------------------------------------------------
 
-resource "aws_iam_role" "moltbot" {
+resource "aws_iam_role" "openclaw" {
   name = "${local.name_prefix}-ec2-role"
 
   assume_role_policy = jsonencode({
@@ -25,20 +25,20 @@ resource "aws_iam_role" "moltbot" {
 # Attach SSM managed policy for secure instance access
 resource "aws_iam_role_policy_attachment" "ssm" {
   count      = var.enable_ssm ? 1 : 0
-  role       = aws_iam_role.moltbot.name
+  role       = aws_iam_role.openclaw.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 # CloudWatch agent policy for logging
 resource "aws_iam_role_policy_attachment" "cloudwatch" {
-  role       = aws_iam_role.moltbot.name
+  role       = aws_iam_role.openclaw.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
 # Instance profile
-resource "aws_iam_instance_profile" "moltbot" {
+resource "aws_iam_instance_profile" "openclaw" {
   name = "${local.name_prefix}-instance-profile"
-  role = aws_iam_role.moltbot.name
+  role = aws_iam_role.openclaw.name
 
   tags = local.common_tags
 }

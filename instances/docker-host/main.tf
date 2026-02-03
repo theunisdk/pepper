@@ -1,5 +1,5 @@
-# Terraform configuration for moltbot Docker host
-# Runs multiple moltbot instances as Docker containers on a single EC2
+# Terraform configuration for OpenClaw Docker host
+# Runs multiple OpenClaw instances as Docker containers on a single EC2
 
 terraform {
   required_version = ">= 1.5.0"
@@ -25,7 +25,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "moltbot-docker-host"
+      Project     = "openclaw-docker-host"
       Environment = "prod"
       ManagedBy   = "terraform"
     }
@@ -33,7 +33,7 @@ provider "aws" {
 }
 
 module "docker_host" {
-  source = "../../terraform/modules/moltbot-docker-host"
+  source = "../../terraform/modules/openclaw-docker-host"
 
   # Required: Your allowed SSH IP
   allowed_ssh_cidr = var.allowed_ssh_cidr
@@ -42,7 +42,7 @@ module "docker_host" {
   bots = var.bots
 
   # Naming
-  project_name = "moltbot-docker"
+  project_name = "openclaw-docker"
   environment  = "prod"
 
   # Network
@@ -62,7 +62,7 @@ module "docker_host" {
   ssh_public_key_path  = var.ssh_public_key_path
 
   # Docker settings
-  docker_image          = "moltbot-local"
+  docker_image          = "openclaw-local"
   auto_start_containers = false  # Start manually after onboarding
 
   # Monitoring

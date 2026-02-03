@@ -17,28 +17,10 @@ variable "allowed_ssh_cidr" {
   }
 }
 
-variable "bots" {
-  description = "List of bot configurations to deploy on this Docker host"
-  type = list(object({
-    name = string
-    port = number
-  }))
-
-  validation {
-    condition     = length(var.bots) > 0 && length(var.bots) <= 10
-    error_message = "Must deploy between 1 and 10 bots."
-  }
-
-  validation {
-    condition     = alltrue([for bot in var.bots : bot.port >= 18789 && bot.port <= 18799])
-    error_message = "Bot ports must be between 18789 and 18799."
-  }
-}
-
 variable "project_name" {
   description = "Project name used for resource naming and tagging"
   type        = string
-  default     = "moltbot-docker"
+  default     = "openclaw"
 }
 
 variable "environment" {
@@ -52,7 +34,7 @@ variable "environment" {
 # -----------------------------------------------------------------------------
 
 variable "aws_region" {
-  description = "AWS region for deployment"
+  description = "AWS region for deployment (choose one close to you for latency)"
   type        = string
   default     = "af-south-1"
 }
@@ -60,13 +42,13 @@ variable "aws_region" {
 variable "vpc_cidr" {
   description = "CIDR block for the dedicated VPC"
   type        = string
-  default     = "10.200.0.0/16"
+  default     = "10.100.0.0/16"
 }
 
 variable "public_subnet_cidr" {
   description = "CIDR block for the public subnet"
   type        = string
-  default     = "10.200.1.0/24"
+  default     = "10.100.1.0/24"
 }
 
 variable "availability_zone_suffix" {
@@ -80,24 +62,24 @@ variable "availability_zone_suffix" {
 # -----------------------------------------------------------------------------
 
 variable "instance_type" {
-  description = "EC2 instance type (t3.medium for 3-5 bots, t3.large for 6-10 bots)"
+  description = "EC2 instance type (t3.small recommended for light usage, t3.medium for production)"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 
   validation {
-    condition     = contains(["t3.medium", "t3a.medium", "t3.large", "t3a.large", "t3.xlarge"], var.instance_type)
-    error_message = "Instance type must be t3.medium or larger for Docker host."
+    condition     = contains(["t3.micro", "t3.small", "t3a.small", "t3.medium", "t3a.medium"], var.instance_type)
+    error_message = "Instance type must be one of: t3.micro, t3.small, t3a.small, t3.medium, t3a.medium."
   }
 }
 
 variable "root_volume_size" {
-  description = "Size of the root EBS volume in GB (50+ recommended for Docker host)"
+  description = "Size of the root EBS volume in GB (20-50 recommended)"
   type        = number
-  default     = 50
+  default     = 30
 
   validation {
-    condition     = var.root_volume_size >= 30 && var.root_volume_size <= 200
-    error_message = "Root volume size must be between 30 and 200 GB."
+    condition     = var.root_volume_size >= 20 && var.root_volume_size <= 100
+    error_message = "Root volume size must be between 20 and 100 GB."
   }
 }
 
@@ -124,29 +106,41 @@ variable "existing_key_name" {
 }
 
 variable "ssh_public_key_path" {
-  description = "Path to save the generated SSH public key"
+  description = "Path to save the generated SSH public key (only if create_ssh_key is true)"
   type        = string
-  default     = "~/.ssh/moltbot_docker_host_key.pub"
+  default     = "~/.ssh/openclaw_key.pub"
 }
 
 variable "ssh_private_key_path" {
-  description = "Path to save the generated SSH private key"
+  description = "Path to save the generated SSH private key (only if create_ssh_key is true)"
   type        = string
-  default     = "~/.ssh/moltbot_docker_host_key.pem"
+  default     = "~/.ssh/openclaw_key.pem"
 }
 
 # -----------------------------------------------------------------------------
-# DOCKER CONFIGURATION
+# USER DATA / OS HARDENING
 # -----------------------------------------------------------------------------
 
-variable "docker_image" {
-  description = "Docker image to use for moltbot containers"
-  type        = string
-  default     = "moltbot-local"
+variable "enable_user_data" {
+  description = "Whether to include user_data script for initial OS hardening and setup"
+  type        = bool
+  default     = true
 }
 
-variable "auto_start_containers" {
-  description = "Whether to automatically start containers after provisioning"
+variable "openclaw_user" {
+  description = "Non-root user to create for running OpenClaw"
+  type        = string
+  default     = "clawd"
+}
+
+variable "install_node" {
+  description = "Whether to install Node.js 22+ via user_data"
+  type        = bool
+  default     = true
+}
+
+variable "install_openclaw" {
+  description = "Whether to install OpenClaw via user_data (requires manual configuration after)"
   type        = bool
   default     = false
 }

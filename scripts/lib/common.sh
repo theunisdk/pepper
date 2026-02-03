@@ -1,5 +1,5 @@
 #!/bin/bash
-# Common functions for moltbot multi-instance management
+# Common functions for pepper (OpenClaw instance management)
 
 # Colors
 RED='\033[0;31m'
@@ -29,13 +29,12 @@ error() {
 # Show usage
 show_usage() {
     cat <<EOF
-${CYAN}Moltbot Multi-Instance Manager${NC}
+${CYAN}Pepper - OpenClaw Instance Manager${NC}
 
 Usage:
-  moltbot <instance> <command> [args...]
+  pepper <instance> <command> [args...]
 
 ${YELLOW}Instances:${NC}
-  pepper, alfred, jarvis, etc.
   List available: ls -1 instances/ | grep -v ".example"
 
 ${YELLOW}Commands:${NC}
@@ -47,13 +46,13 @@ ${YELLOW}Commands:${NC}
   status           - Show instance status
 
 ${YELLOW}Examples:${NC}
-  moltbot pepper terraform apply
-  moltbot alfred connect
-  moltbot jarvis backup
-  moltbot pepper ssh
+  pepper myhost terraform apply
+  pepper myhost connect
+  pepper myhost backup
+  pepper myhost ssh
 
 ${YELLOW}Create a new instance:${NC}
-  scripts/create-instance.sh <name>
+  scripts/create-docker-host
 
 EOF
 }

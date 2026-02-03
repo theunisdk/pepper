@@ -1,6 +1,6 @@
-# Moltbot Multi-Instance Framework
+# Pepper - OpenClaw Deployment Framework
 
-A secure, self-hosted AI assistant framework built on [Moltbot](https://molt.bot) (formerly Clawdbot). Create and manage multiple independent moltbot instances (e.g., "pepper", "alfred", "jarvis") running on dedicated AWS EC2 instances with access to email, calendar, and messaging.
+A secure, self-hosted AI assistant framework built on [OpenClaw](https://openclaw.ai). Create and manage multiple independent OpenClaw instances (e.g., "pepper", "alfred", "jarvis") running on dedicated AWS EC2 instances with access to email, calendar, and messaging.
 
 **Current instances in this repo:** `pepper` (production)
 
@@ -18,7 +18,7 @@ A secure, self-hosted AI assistant framework built on [Moltbot](https://molt.bot
 ┌─────────────────────────────────────────────────────────────┐
 │               AWS EC2 Instance (af-south-1)                  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  Moltbot (Pepper)                                     │  │
+│  │  OpenClaw (Pepper)                                    │  │
 │  │  - Reads from Pepper's Gmail (via gog CLI)           │  │
 │  │  - Queries Pepper's Calendar                          │  │
 │  │  - Processes with Claude Opus 4.5                     │  │
@@ -46,16 +46,16 @@ A secure, self-hosted AI assistant framework built on [Moltbot](https://molt.bot
 
 ## Multi-Instance Support
 
-This framework supports running multiple independent moltbot instances in parallel:
+This framework supports running multiple independent OpenClaw instances in parallel:
 
 ```bash
 # Create new instance
 ./scripts/create-instance.sh alfred
 
 # Manage instances with unified wrapper
-./scripts/moltbot pepper backup     # Backup pepper
-./scripts/moltbot alfred connect    # Connect to alfred's admin UI
-./scripts/moltbot jarvis terraform apply  # Deploy jarvis
+./scripts/pepper pepper backup     # Backup pepper
+./scripts/pepper alfred connect    # Connect to alfred's admin UI
+./scripts/pepper jarvis terraform apply  # Deploy jarvis
 
 # Each instance has:
 # ✓ Separate AWS infrastructure (VPC, EC2, EIP)
@@ -126,31 +126,31 @@ nano instances/pepper/terraform.tfvars
 
 ```bash
 # Initialize and deploy
-./scripts/moltbot pepper terraform init
-./scripts/moltbot pepper terraform apply
+./scripts/pepper pepper terraform init
+./scripts/pepper pepper terraform apply
 ```
 
 ### 3. Configure Bot
 
 ```bash
 # SSH to instance
-./scripts/moltbot pepper ssh
+./scripts/pepper pepper ssh
 
 # Switch to bot user and run onboarding
 sudo -u clawd -i
-moltbot onboard
+openclaw onboard
 # ... follow onboarding wizard ...
 
 # Enable service
 exit
-sudo systemctl enable --now moltbot
+sudo systemctl enable --now openclaw
 exit
 ```
 
 ### 4. Connect to Admin UI
 
 ```bash
-./scripts/moltbot pepper connect
+./scripts/pepper pepper connect
 # Opens http://127.0.0.1:18789 in your browser
 ```
 
@@ -175,7 +175,7 @@ Draft a reply to that email from Sarah
 
 - **[Creating Instances](docs/creating-instances.md)** - Multi-instance setup and management
 - **[Google Workspace Setup](docs/google-workspace-setup.md)** - Configure Gmail, Calendar, Drive access
-- **[Moltbot Onboarding](docs/moltbot-onboarding-setup.md)** - Initial bot configuration
+- **[OpenClaw Onboarding](docs/openclaw-onboarding-setup.md)** - Initial bot configuration
 - **[Gemini API Setup](docs/gemini-api-key-setup.md)** - Alternative AI model configuration
 - **[Backup & Restore Guide](docs/backup-restore-guide.md)** - Disaster recovery procedures
 - **[Terraform README](terraform/README.md)** - Infrastructure details
@@ -188,14 +188,14 @@ Draft a reply to that email from Sarah
 
 ```bash
 # Replace {instance} with your instance name (e.g., pepper, alfred, jarvis)
-./scripts/moltbot {instance} connect
+./scripts/pepper {instance} connect
 # Opens http://127.0.0.1:18789 in your browser
 ```
 
 ### SSH to Instance
 
 ```bash
-./scripts/moltbot {instance} ssh
+./scripts/pepper {instance} ssh
 
 # Switch to bot user
 sudo -u clawd -i
@@ -205,19 +205,19 @@ sudo -u clawd -i
 
 ```bash
 # Check instance info and service status
-./scripts/moltbot {instance} status
+./scripts/pepper {instance} status
 
 # Or SSH and check manually
-./scripts/moltbot {instance} ssh
-sudo systemctl status moltbot
-sudo journalctl -u moltbot -f
+./scripts/pepper {instance} ssh
+sudo systemctl status openclaw
+sudo journalctl -u openclaw -f
 ```
 
 ### Restart Service
 
 ```bash
-./scripts/moltbot {instance} ssh
-sudo systemctl restart moltbot
+./scripts/pepper {instance} ssh
+sudo systemctl restart openclaw
 ```
 
 ---
@@ -227,7 +227,7 @@ sudo systemctl restart moltbot
 ### Create Backup
 
 ```bash
-./scripts/moltbot {instance} backup
+./scripts/pepper {instance} backup
 # Saves to ~/.{instance}-backups/YYYYMMDD-HHMMSS/
 ```
 
@@ -235,11 +235,11 @@ sudo systemctl restart moltbot
 
 ```bash
 # 1. Destroy and recreate
-./scripts/moltbot {instance} terraform destroy
-./scripts/moltbot {instance} terraform apply
+./scripts/pepper {instance} terraform destroy
+./scripts/pepper {instance} terraform apply
 
 # 2. Restore from backup
-./scripts/moltbot {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
+./scripts/pepper {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
 ```
 
 See [Backup & Restore Guide](docs/backup-restore-guide.md) for details.
@@ -251,7 +251,7 @@ See [Backup & Restore Guide](docs/backup-restore-guide.md) for details.
 Infrastructure is organized as a reusable module with per-instance configurations:
 
 ```
-terraform/modules/moltbot/      # Reusable module
+terraform/modules/openclaw/      # Reusable module
 ├── vpc.tf                      # Dedicated VPC
 ├── security.tf                 # Security groups, ACLs
 ├── ec2.tf                      # EC2 instance
@@ -259,7 +259,7 @@ terraform/modules/moltbot/      # Reusable module
 └── user_data/init.sh.tftpl     # Bootstrap script
 
 instances/{name}/               # Per-instance Terraform
-├── main.tf                     # Calls moltbot module
+├── main.tf                     # Calls openclaw module
 ├── variables.tf                # Variable definitions
 ├── terraform.tfvars            # Instance-specific values
 └── .terraform/                 # Isolated Terraform state
@@ -291,7 +291,6 @@ See [terraform/README.md](terraform/README.md) for module details.
 
 ### What to Monitor
 
-⚠️ **Supply chain risk**: Moltbot is open source but had [recent security issues](https://www.theregister.com/2026/01/27/clawdbot_moltbot_security_concerns/)
 ⚠️ **Network traffic**: Monitor outbound connections for unexpected domains
 ⚠️ **OAuth usage**: Check Google Cloud Console for API usage anomalies
 ⚠️ **Telegram 2FA**: Enable on your account (bot allowlist is only defense)
@@ -335,8 +334,8 @@ See [docs/google-workspace-setup.md](docs/google-workspace-setup.md) for more.
 ### Service not starting
 
 ```bash
-sudo journalctl -u moltbot -n 50
-sudo systemctl status moltbot
+sudo journalctl -u openclaw -n 50
+sudo systemctl status openclaw
 ```
 
 ### Gateway not accessible
@@ -386,11 +385,11 @@ AWS_PROFILE=noldor terraform validate
 
 ### Update User Data Script
 
-After editing `terraform/modules/moltbot/user_data/init.sh.tftpl`:
+After editing `terraform/modules/openclaw/user_data/init.sh.tftpl`:
 
 ```bash
 # Recreate instance with new user_data
-AWS_PROFILE=noldor terraform apply -replace=module.moltbot.aws_instance.moltbot
+AWS_PROFILE=noldor terraform apply -replace=module.openclaw.aws_instance.openclaw
 ```
 
 ---
@@ -401,25 +400,25 @@ AWS_PROFILE=noldor terraform apply -replace=module.moltbot.aws_instance.moltbot
 # Replace {instance} with your instance name (e.g., pepper, alfred, jarvis)
 
 # Connect to admin UI
-./scripts/moltbot {instance} connect
+./scripts/pepper {instance} connect
 
 # SSH to instance
-./scripts/moltbot {instance} ssh
+./scripts/pepper {instance} ssh
 
 # Backup instance data
-./scripts/moltbot {instance} backup
+./scripts/pepper {instance} backup
 
 # Restore from backup
-./scripts/moltbot {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
+./scripts/pepper {instance} restore ~/.{instance}-backups/latest/{instance}-backup.tar.gz
 
 # Check instance status
-./scripts/moltbot {instance} status
+./scripts/pepper {instance} status
 
 # View Terraform outputs
-./scripts/moltbot {instance} terraform output
+./scripts/pepper {instance} terraform output
 
 # Destroy everything (careful!)
-./scripts/moltbot {instance} terraform destroy
+./scripts/pepper {instance} terraform destroy
 ```
 
 ---
@@ -440,28 +439,34 @@ AWS_PROFILE=noldor terraform apply -replace=module.moltbot.aws_instance.moltbot
 │   │   └── .terraform/                # Terraform state (gitignored)
 │   └── {other-instances}/             # Additional instances...
 ├── scripts/
-│   ├── moltbot                        # Main wrapper script
+│   ├── pepper                         # Main wrapper script
+│   ├── pepper-interactive             # Interactive CLI
 │   ├── lib/                           # Shared libraries
 │   │   ├── common.sh                  # Utilities and logging
 │   │   ├── config.sh                  # Config loader
-│   │   └── commands.sh                # Command implementations
+│   │   ├── commands.sh                # Command implementations
+│   │   └── commands-docker.sh         # Docker deployment commands
 │   └── create-instance.sh             # Instance creation wizard
 ├── docs/
 │   ├── creating-instances.md          # Multi-instance guide
 │   ├── google-workspace-setup.md      # Gmail/Calendar setup
-│   ├── moltbot-onboarding-setup.md    # Initial configuration
+│   ├── openclaw-onboarding-setup.md   # Initial configuration
 │   ├── gemini-api-key-setup.md        # Gemini API setup
 │   └── backup-restore-guide.md        # Disaster recovery
+├── docker/
+│   ├── Dockerfile                     # OpenClaw container image
+│   └── docker-compose.yml.tftpl       # Multi-container template
 └── terraform/
     ├── README.md                       # Infrastructure docs
-    └── modules/moltbot/                # Reusable module
+    ├── modules/openclaw/               # Single-instance module
+    └── modules/openclaw-docker-host/   # Docker host module
 ```
 
 ---
 
 ## Resources
 
-- **Moltbot Docs**: https://docs.molt.bot
+- **OpenClaw Docs**: https://docs.openclaw.ai
 - **Anthropic Claude**: https://console.anthropic.com
 - **Google Cloud Console**: https://console.cloud.google.com
 - **Terraform AWS Provider**: https://registry.terraform.io/providers/hashicorp/aws
@@ -478,11 +483,12 @@ Personal project - not licensed for distribution.
 
 For issues with:
 - **Infrastructure**: Check Terraform logs, AWS Console
-- **Moltbot**: See https://docs.molt.bot or https://github.com/moltbot/clawdbot/issues
+- **OpenClaw**: See https://docs.openclaw.ai or https://github.com/openclaw/openclaw/issues
 - **This setup**: Refer to docs/ folder
 
 ---
 
 ## Changelog
 
+- **2026-02-03**: Renamed from moltbot to pepper/openclaw
 - **2026-01-28**: Initial setup with Terraform, Google Workspace integration, backup scripts

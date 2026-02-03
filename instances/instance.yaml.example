@@ -1,4 +1,4 @@
-# Moltbot Instance Configuration Template
+# OpenClaw Instance Configuration Template
 # Copy this file to instances/{name}/instance.yaml and customize
 
 name: example
@@ -14,8 +14,8 @@ instance:
   type: t3.small
   volume_size: 30
 
-# Moltbot Configuration
-moltbot:
+# OpenClaw Configuration
+openclaw:
   user: clawd
   gateway_port: 18789
 
@@ -38,5 +38,5 @@ paths:
 # Tags
 tags:
   Owner: your-name
-  Project: moltbot-{name}
+  Project: openclaw-{name}
   Environment: prod

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Command implementations for Docker-based moltbot deployments
+# Command implementations for Docker-based OpenClaw deployments
 
 # Execute terraform command (same as single-instance)
 exec_terraform() {
@@ -35,7 +35,7 @@ exec_connect() {
     local bot_name="${1:-}"
 
     if [[ -z "$bot_name" ]]; then
-        error "Usage: moltbot $INSTANCE_NAME connect <bot-name>"
+        error "Usage: pepper $INSTANCE_NAME connect <bot-name>"
         echo ""
         info "Available bots:"
         list_bots "$INSTANCE_CONFIG" | sed 's/^/  - /'
@@ -58,7 +58,7 @@ exec_connect() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found. Run terraform apply first."
         return 1
     fi
@@ -67,10 +67,10 @@ exec_connect() {
     if lsof -i ":$bot_port" >/dev/null 2>&1; then
         warn "Port $bot_port already in use - tunnel may already be running"
     else
-        info "Starting SSH tunnel to $MOLTBOT_HOST:$bot_port..."
+        info "Starting SSH tunnel to $OPENCLAW_HOST:$bot_port..."
         ssh -f -N -L "$bot_port:127.0.0.1:$bot_port" \
             -i "$SSH_KEY" \
-            "ubuntu@$MOLTBOT_HOST" \
+            "ubuntu@$OPENCLAW_HOST" \
             -o StrictHostKeyChecking=accept-new \
             -o ServerAliveInterval=60 \
             -o ServerAliveCountMax=3 || {
@@ -112,7 +112,7 @@ exec_backup() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
@@ -129,23 +129,23 @@ exec_backup() {
 
     # Create backup on remote
     info "Creating backup archives on Docker host..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" << EOF
-mkdir -p /tmp/moltbot-backup-$backup_timestamp
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" << EOF
+mkdir -p /tmp/openclaw-backup-$backup_timestamp
 
 for bot in $bots; do
     echo "Backing up \$bot volumes..."
     for suffix in config gog workspace; do
-        vol="moltbot_\${bot}-\${suffix}"
+        vol="openclaw_\${bot}-\${suffix}"
         if docker volume ls --format '{{.Name}}' | grep -q "^\$vol\$"; then
             docker run --rm \
                 -v \$vol:/source:ro \
-                -v /tmp/moltbot-backup-$backup_timestamp:/backup \
+                -v /tmp/openclaw-backup-$backup_timestamp:/backup \
                 alpine tar czf /backup/\${vol}.tar.gz -C /source . 2>/dev/null || true
         fi
     done
 done
 
-chmod -R 644 /tmp/moltbot-backup-$backup_timestamp/*
+chmod -R 644 /tmp/openclaw-backup-$backup_timestamp/*
 EOF
 
     if [ $? -ne 0 ]; then
@@ -156,15 +156,15 @@ EOF
     # Download backups
     info "Downloading backups..."
     scp -i "$SSH_KEY" -r \
-        "ubuntu@$MOLTBOT_HOST:/tmp/moltbot-backup-$backup_timestamp/*" \
+        "ubuntu@$OPENCLAW_HOST:/tmp/openclaw-backup-$backup_timestamp/*" \
         "$backup_path/" || {
         error "Failed to download backups"
         return 1
     }
 
     # Cleanup remote
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-        "rm -rf /tmp/moltbot-backup-$backup_timestamp"
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "rm -rf /tmp/openclaw-backup-$backup_timestamp"
 
     # Create latest symlink
     ln -sfn "$backup_path" "$BACKUP_DIR/latest"
@@ -181,7 +181,7 @@ exec_restore() {
     local backup_dir="${2:-$BACKUP_DIR/latest}"
 
     if [[ -z "$bot_name" ]]; then
-        error "Usage: moltbot $INSTANCE_NAME restore <bot-name> [backup-dir]"
+        error "Usage: pepper $INSTANCE_NAME restore <bot-name> [backup-dir]"
         return 1
     fi
 
@@ -195,7 +195,7 @@ exec_restore() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
@@ -213,21 +213,21 @@ exec_restore() {
 
     # Stop container
     info "Stopping $bot_name container..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-        "docker compose -f /opt/moltbot/docker-compose.yml stop $bot_name"
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml stop $bot_name"
 
     # Upload backups
     info "Uploading backups..."
     scp -i "$SSH_KEY" \
-        "$backup_dir/moltbot_${bot_name}-"*.tar.gz \
-        "ubuntu@$MOLTBOT_HOST:/tmp/" 2>/dev/null || true
+        "$backup_dir/openclaw_${bot_name}-"*.tar.gz \
+        "ubuntu@$OPENCLAW_HOST:/tmp/" 2>/dev/null || true
 
     # Restore volumes
     info "Restoring volumes..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" << EOF
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" << EOF
 for suffix in config gog workspace; do
-    vol="moltbot_${bot_name}-\${suffix}"
-    backup_file="/tmp/moltbot_${bot_name}-\${suffix}.tar.gz"
+    vol="openclaw_${bot_name}-\${suffix}"
+    backup_file="/tmp/openclaw_${bot_name}-\${suffix}.tar.gz"
 
     if [[ -f "\$backup_file" ]]; then
         echo "Restoring \$vol..."
@@ -237,7 +237,7 @@ for suffix in config gog workspace; do
         docker run --rm \
             -v \$vol:/data \
             -v /tmp:/backup \
-            alpine tar xzf /backup/moltbot_${bot_name}-\${suffix}.tar.gz -C /data
+            alpine tar xzf /backup/openclaw_${bot_name}-\${suffix}.tar.gz -C /data
         rm "\$backup_file"
     fi
 done
@@ -245,8 +245,8 @@ EOF
 
     # Start container
     info "Starting $bot_name container..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-        "docker compose -f /opt/moltbot/docker-compose.yml start $bot_name"
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml start $bot_name"
 
     success "Restore complete!"
 }
@@ -260,12 +260,12 @@ exec_ssh() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST"
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST"
 }
 
 # Execute command in bot container
@@ -273,7 +273,7 @@ exec_shell() {
     local bot_name="${1:-}"
 
     if [[ -z "$bot_name" ]]; then
-        error "Usage: moltbot $INSTANCE_NAME shell <bot-name>"
+        error "Usage: pepper $INSTANCE_NAME shell <bot-name>"
         info "Available bots:"
         list_bots "$INSTANCE_CONFIG" | sed 's/^/  - /'
         return 1
@@ -284,14 +284,14 @@ exec_shell() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
     info "Opening shell in ${CYAN}$bot_name${NC} container..."
-    ssh -t -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-        "docker compose -f /opt/moltbot/docker-compose.yml exec $bot_name bash"
+    ssh -t -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml exec $bot_name bash"
 }
 
 # Run onboarding for a bot
@@ -299,7 +299,7 @@ exec_onboard() {
     local bot_name="${1:-}"
 
     if [[ -z "$bot_name" ]]; then
-        error "Usage: moltbot $INSTANCE_NAME onboard <bot-name>"
+        error "Usage: pepper $INSTANCE_NAME onboard <bot-name>"
         info "Available bots:"
         list_bots "$INSTANCE_CONFIG" | sed 's/^/  - /'
         return 1
@@ -310,14 +310,14 @@ exec_onboard() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
     info "Running onboarding for ${CYAN}$bot_name${NC}..."
-    ssh -t -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-        "docker compose -f /opt/moltbot/docker-compose.yml exec -it $bot_name moltbot onboard"
+    ssh -t -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml exec -it $bot_name openclaw onboard"
 }
 
 # View logs
@@ -330,19 +330,19 @@ exec_logs() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
     if [[ -z "$bot_name" ]]; then
         info "Viewing logs for ALL bots..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "docker compose -f /opt/moltbot/docker-compose.yml logs -f --tail=$tail_lines"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml logs -f --tail=$tail_lines"
     else
         info "Viewing logs for ${CYAN}$bot_name${NC}..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "docker compose -f /opt/moltbot/docker-compose.yml logs -f --tail=$tail_lines $bot_name"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml logs -f --tail=$tail_lines $bot_name"
     fi
 }
 
@@ -351,7 +351,7 @@ exec_status() {
     echo ""
     echo "${CYAN}=== Docker Host Status: $INSTANCE_NAME ===${NC}"
     echo ""
-    echo "Host IP:        $MOLTBOT_HOST"
+    echo "Host IP:        $OPENCLAW_HOST"
     echo "SSH Key:        $SSH_KEY"
     echo "AWS Profile:    $AWS_PROFILE"
     echo "AWS Region:     $AWS_REGION"
@@ -364,12 +364,12 @@ exec_status() {
     done
     echo ""
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         warn "Docker host not yet deployed or Terraform not initialized"
         echo ""
         info "To deploy:"
-        info "  moltbot $INSTANCE_NAME terraform init"
-        info "  moltbot $INSTANCE_NAME terraform apply"
+        info "  pepper $INSTANCE_NAME terraform init"
+        info "  pepper $INSTANCE_NAME terraform apply"
         return 0
     fi
 
@@ -379,17 +379,17 @@ exec_status() {
     fi
 
     info "Checking Docker host connectivity..."
-    if ssh -i "$SSH_KEY" -o ConnectTimeout=5 "ubuntu@$MOLTBOT_HOST" "echo connected" 2>/dev/null; then
+    if ssh -i "$SSH_KEY" -o ConnectTimeout=5 "ubuntu@$OPENCLAW_HOST" "echo connected" 2>/dev/null; then
         success "Docker host is reachable"
         echo ""
 
         info "Container status:"
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "docker compose -f /opt/moltbot/docker-compose.yml ps" 2>&1 || true
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml ps" 2>&1 || true
 
         echo ""
         info "Resource usage:"
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
             "docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'" 2>&1 || true
     else
         error "Cannot connect to Docker host"
@@ -405,19 +405,19 @@ exec_start() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
     if [[ -z "$bot_name" ]]; then
         info "Starting all containers..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "sudo systemctl start moltbot-docker"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "sudo systemctl start openclaw-docker"
     else
         info "Starting ${CYAN}$bot_name${NC}..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "docker compose -f /opt/moltbot/docker-compose.yml start $bot_name"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml start $bot_name"
     fi
 
     success "Done!"
@@ -432,19 +432,19 @@ exec_stop() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
     if [[ -z "$bot_name" ]]; then
         info "Stopping all containers..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "sudo systemctl stop moltbot-docker"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "sudo systemctl stop openclaw-docker"
     else
         info "Stopping ${CYAN}$bot_name${NC}..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "docker compose -f /opt/moltbot/docker-compose.yml stop $bot_name"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml stop $bot_name"
     fi
 
     success "Done!"
@@ -459,19 +459,19 @@ exec_restart() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Docker host IP not found"
         return 1
     fi
 
     if [[ -z "$bot_name" ]]; then
         info "Restarting all containers..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "sudo systemctl restart moltbot-docker"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "sudo systemctl restart openclaw-docker"
     else
         info "Restarting ${CYAN}$bot_name${NC}..."
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
-            "docker compose -f /opt/moltbot/docker-compose.yml restart $bot_name"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml restart $bot_name"
     fi
 
     success "Done!"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Command implementations for moltbot instances
+# Command implementations for OpenClaw instances (single-instance mode)
 
 # Execute terraform command
 exec_terraform() {
@@ -31,21 +31,21 @@ exec_connect() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Instance IP not found"
-        error "Make sure Terraform has been applied: moltbot $INSTANCE_NAME terraform apply"
+        error "Make sure Terraform has been applied: pepper $INSTANCE_NAME terraform apply"
         return 1
     fi
 
     # Check if tunnel already running
-    if lsof -i ":$MOLTBOT_PORT" >/dev/null 2>&1; then
-        warn "Port $MOLTBOT_PORT already in use - tunnel may already be running"
+    if lsof -i ":$OPENCLAW_PORT" >/dev/null 2>&1; then
+        warn "Port $OPENCLAW_PORT already in use - tunnel may already be running"
         info "Opening browser..."
     else
-        info "Starting SSH tunnel to $MOLTBOT_HOST..."
-        ssh -f -N -L "$MOLTBOT_PORT:127.0.0.1:$MOLTBOT_PORT" \
+        info "Starting SSH tunnel to $OPENCLAW_HOST..."
+        ssh -f -N -L "$OPENCLAW_PORT:127.0.0.1:$OPENCLAW_PORT" \
             -i "$SSH_KEY" \
-            "ubuntu@$MOLTBOT_HOST" \
+            "ubuntu@$OPENCLAW_HOST" \
             -o StrictHostKeyChecking=accept-new \
             -o ServerAliveInterval=60 \
             -o ServerAliveCountMax=3 || {
@@ -58,7 +58,7 @@ exec_connect() {
     fi
 
     # Open browser
-    local url="http://127.0.0.1:$MOLTBOT_PORT"
+    local url="http://127.0.0.1:$OPENCLAW_PORT"
     info "Opening $url ..."
 
     if command_exists xdg-open; then
@@ -75,7 +75,7 @@ exec_connect() {
     success "Done!"
     echo ""
     info "To close the tunnel later:"
-    info "  pkill -f 'ssh.*$MOLTBOT_PORT:127.0.0.1:$MOLTBOT_PORT'"
+    info "  pkill -f 'ssh.*$OPENCLAW_PORT:127.0.0.1:$OPENCLAW_PORT'"
 }
 
 # Backup instance
@@ -91,7 +91,7 @@ exec_backup() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Instance IP not found"
         return 1
     fi
@@ -101,12 +101,12 @@ exec_backup() {
 
     # Create backup on EC2
     info "Creating backup archive on EC2..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" << EOF
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" << EOF
 sudo tar -czf /tmp/${INSTANCE_NAME}-backup.tar.gz \
-  -C /home/$MOLTBOT_USER \
+  -C /home/$OPENCLAW_USER \
   .clawdbot \
   .gog \
-  moltbot \
+  openclaw \
   2>/dev/null || true
 sudo chmod 644 /tmp/${INSTANCE_NAME}-backup.tar.gz
 EOF
@@ -119,7 +119,7 @@ EOF
     # Download backup
     info "Downloading backup..."
     scp -i "$SSH_KEY" \
-        "ubuntu@$MOLTBOT_HOST:/tmp/${INSTANCE_NAME}-backup.tar.gz" \
+        "ubuntu@$OPENCLAW_HOST:/tmp/${INSTANCE_NAME}-backup.tar.gz" \
         "$backup_path/" || {
         error "Failed to download backup"
         return 1
@@ -127,7 +127,7 @@ EOF
 
     # Cleanup remote
     info "Cleaning up remote..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" \
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
         "sudo rm /tmp/${INSTANCE_NAME}-backup.tar.gz"
 
     # Create latest symlink
@@ -139,9 +139,9 @@ EOF
     info "Backup contains:"
     info "  - ~/.clawdbot/ (config, credentials, sessions)"
     info "  - ~/.gog/ (Google OAuth tokens)"
-    info "  - ~/moltbot/ (workspace, memory, git history)"
+    info "  - ~/openclaw/ (workspace, memory, git history)"
     echo ""
-    info "To restore: moltbot $INSTANCE_NAME restore $backup_path/${INSTANCE_NAME}-backup.tar.gz"
+    info "To restore: pepper $INSTANCE_NAME restore $backup_path/${INSTANCE_NAME}-backup.tar.gz"
 }
 
 # Restore instance from backup
@@ -166,7 +166,7 @@ exec_restore() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Instance IP not found"
         return 1
     fi
@@ -184,18 +184,18 @@ exec_restore() {
 
     # Upload and restore
     info "Uploading backup to EC2..."
-    scp -i "$SSH_KEY" "$backup_file" "ubuntu@$MOLTBOT_HOST:/tmp/${INSTANCE_NAME}-backup.tar.gz" || {
+    scp -i "$SSH_KEY" "$backup_file" "ubuntu@$OPENCLAW_HOST:/tmp/${INSTANCE_NAME}-backup.tar.gz" || {
         error "Failed to upload backup"
         return 1
     }
 
     info "Restoring on EC2..."
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" << EOF
-sudo systemctl stop moltbot
-sudo tar -xzf /tmp/${INSTANCE_NAME}-backup.tar.gz -C /home/$MOLTBOT_USER/
-sudo chown -R $MOLTBOT_USER:$MOLTBOT_USER /home/$MOLTBOT_USER/.clawdbot /home/$MOLTBOT_USER/.gog /home/$MOLTBOT_USER/moltbot
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" << EOF
+sudo systemctl stop openclaw
+sudo tar -xzf /tmp/${INSTANCE_NAME}-backup.tar.gz -C /home/$OPENCLAW_USER/
+sudo chown -R $OPENCLAW_USER:$OPENCLAW_USER /home/$OPENCLAW_USER/.clawdbot /home/$OPENCLAW_USER/.gog /home/$OPENCLAW_USER/openclaw
 sudo rm /tmp/${INSTANCE_NAME}-backup.tar.gz
-sudo systemctl start moltbot
+sudo systemctl start openclaw
 EOF
 
     if [ $? -ne 0 ]; then
@@ -206,8 +206,8 @@ EOF
     success "Restore complete!"
     echo ""
     info "Service restarted. Check status:"
-    info "  moltbot $INSTANCE_NAME ssh"
-    info "  sudo systemctl status moltbot"
+    info "  pepper $INSTANCE_NAME ssh"
+    info "  sudo systemctl status openclaw"
 }
 
 # SSH to instance
@@ -220,12 +220,12 @@ exec_ssh() {
         return 1
     fi
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         error "Instance IP not found"
         return 1
     fi
 
-    ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST"
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST"
 }
 
 # Show instance status
@@ -233,21 +233,21 @@ exec_status() {
     echo ""
     echo "${CYAN}=== Status for $INSTANCE_NAME ===${NC}"
     echo ""
-    echo "Instance IP:    $MOLTBOT_HOST"
+    echo "Instance IP:    $OPENCLAW_HOST"
     echo "SSH Key:        $SSH_KEY"
-    echo "Moltbot User:   $MOLTBOT_USER"
-    echo "Gateway Port:   $MOLTBOT_PORT"
+    echo "OpenClaw User:  $OPENCLAW_USER"
+    echo "Gateway Port:   $OPENCLAW_PORT"
     echo "AWS Profile:    $AWS_PROFILE"
     echo "AWS Region:     $AWS_REGION"
     echo "Backup Dir:     $BACKUP_DIR"
     echo ""
 
-    if [[ "$MOLTBOT_HOST" == "UNKNOWN" ]]; then
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
         warn "Instance not yet deployed or Terraform not initialized"
         echo ""
         info "To deploy:"
-        info "  moltbot $INSTANCE_NAME terraform init"
-        info "  moltbot $INSTANCE_NAME terraform apply"
+        info "  pepper $INSTANCE_NAME terraform init"
+        info "  pepper $INSTANCE_NAME terraform apply"
         return 0
     fi
 
@@ -258,12 +258,12 @@ exec_status() {
     fi
 
     info "Checking instance connectivity..."
-    if ssh -i "$SSH_KEY" -o ConnectTimeout=5 "ubuntu@$MOLTBOT_HOST" "echo connected" 2>/dev/null; then
+    if ssh -i "$SSH_KEY" -o ConnectTimeout=5 "ubuntu@$OPENCLAW_HOST" "echo connected" 2>/dev/null; then
         success "Instance is reachable"
         echo ""
 
         info "Service status:"
-        ssh -i "$SSH_KEY" "ubuntu@$MOLTBOT_HOST" "sudo systemctl status moltbot --no-pager" 2>&1 || true
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" "sudo systemctl status openclaw --no-pager" 2>&1 || true
     else
         error "Cannot connect to instance"
         error "Verify:"

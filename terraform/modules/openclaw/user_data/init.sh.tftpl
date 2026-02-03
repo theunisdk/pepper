@@ -4,7 +4,7 @@ set -euo pipefail
 # Log all output for debugging
 exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
 
-echo "=== Starting moltbot instance initialization ==="
+echo "=== Starting OpenClaw instance initialization ==="
 echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # -----------------------------------------------------------------------------
@@ -18,28 +18,28 @@ apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--fo
 # -----------------------------------------------------------------------------
 # CREATE NON-ROOT USER
 # -----------------------------------------------------------------------------
-echo ">>> Creating non-root user: ${moltbot_user}"
-if ! id "${moltbot_user}" &>/dev/null; then
-    useradd -m -s /bin/bash -G sudo "${moltbot_user}"
-    echo "${moltbot_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${moltbot_user}
-    chmod 440 /etc/sudoers.d/${moltbot_user}
+echo ">>> Creating non-root user: ${openclaw_user}"
+if ! id "${openclaw_user}" &>/dev/null; then
+    useradd -m -s /bin/bash -G sudo "${openclaw_user}"
+    echo "${openclaw_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${openclaw_user}
+    chmod 440 /etc/sudoers.d/${openclaw_user}
 fi
 
 # Configure shell environment for the user (ensures /usr/local/bin is in PATH)
-cat >> /home/${moltbot_user}/.bashrc <<'BASHEOF'
+cat >> /home/${openclaw_user}/.bashrc <<'BASHEOF'
 
-# Add /usr/local/bin to PATH (for system-wide binaries like moltbot)
+# Add /usr/local/bin to PATH (for system-wide binaries like openclaw)
 export PATH="/usr/local/bin:$PATH"
 BASHEOF
 
-chown ${moltbot_user}:${moltbot_user} /home/${moltbot_user}/.bashrc
+chown ${openclaw_user}:${openclaw_user} /home/${openclaw_user}/.bashrc
 
 # Copy SSH authorized_keys from ubuntu user to new user
-mkdir -p /home/${moltbot_user}/.ssh
-cp /home/ubuntu/.ssh/authorized_keys /home/${moltbot_user}/.ssh/
-chown -R ${moltbot_user}:${moltbot_user} /home/${moltbot_user}/.ssh
-chmod 700 /home/${moltbot_user}/.ssh
-chmod 600 /home/${moltbot_user}/.ssh/authorized_keys
+mkdir -p /home/${openclaw_user}/.ssh
+cp /home/ubuntu/.ssh/authorized_keys /home/${openclaw_user}/.ssh/
+chown -R ${openclaw_user}:${openclaw_user} /home/${openclaw_user}/.ssh
+chmod 700 /home/${openclaw_user}/.ssh
+chmod 600 /home/${openclaw_user}/.ssh/authorized_keys
 
 # -----------------------------------------------------------------------------
 # SECURITY HARDENING
@@ -52,10 +52,10 @@ cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 # Configure SSH hardening
 cat > /etc/ssh/sshd_config.d/99-hardening.conf <<'SSHEOF'
 # Disable root login
-PermitRootLogin no
+ PermitRootLogin no
 
 # Disable password authentication (key-only)
-PasswordAuthentication no
+ PasswordAuthentication no
 ChallengeResponseAuthentication no
 
 # Use strong key exchange algorithms
@@ -132,7 +132,7 @@ AUTOEOF
 
 %{ if install_node }
 # -----------------------------------------------------------------------------
-# INSTALL NODE.JS 24 (required by moltbot)
+# INSTALL NODE.JS 24 (required by OpenClaw)
 # -----------------------------------------------------------------------------
 echo ">>> Installing Node.js 24..."
 curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
@@ -150,60 +150,55 @@ npm install -g pnpm
 echo "pnpm version: $(pnpm --version)"
 %{ endif }
 
-%{ if install_moltbot }
+%{ if install_openclaw }
 # -----------------------------------------------------------------------------
-# INSTALL MOLTBOT (CLI binary is currently 'clawdbot', aliased to 'moltbot')
+# INSTALL OPENCLAW
 # -----------------------------------------------------------------------------
-echo ">>> Installing moltbot CLI..."
+echo ">>> Installing OpenClaw CLI..."
 
 # Install via official installer
-# The binary is called 'clawdbot' - see: https://docs.molt.bot/start/getting-started
 export HOME=/root
-if curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup; then
+if curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-setup; then
   echo "Official installer succeeded"
 else
   echo "Official installer failed, trying npm fallback..."
   npm config set prefix /usr/local
-  npm install -g clawdbot@latest || {
+  npm install -g openclaw@latest || {
     echo "Both installation methods failed"
     exit 1
   }
 fi
 
 # Verify installation
-CLAWDBOT_PATH=$(which clawdbot 2>/dev/null)
+OPENCLAW_PATH=$(which openclaw 2>/dev/null)
 
-if [ -z "$CLAWDBOT_PATH" ]; then
-  echo "Error: clawdbot not found after installation"
+if [ -z "$OPENCLAW_PATH" ]; then
+  echo "Error: openclaw not found after installation"
   exit 1
 fi
 
-echo "Found clawdbot at: $CLAWDBOT_PATH"
-
-# Create 'moltbot' alias symlink (future-proof naming)
-ln -sf "$CLAWDBOT_PATH" /usr/local/bin/moltbot
+echo "Found openclaw at: $OPENCLAW_PATH"
 
 # Verify installation
-echo "clawdbot location: $(which clawdbot)"
-echo "moltbot location: $(which moltbot)"
-echo "moltbot version: $(moltbot --version)"
+echo "openclaw location: $(which openclaw)"
+echo "openclaw version: $(openclaw --version)"
 
 # Create workspace directory
-MOLTBOT_WORKSPACE="/home/${moltbot_user}/moltbot"
-mkdir -p "$MOLTBOT_WORKSPACE"
-chown -R ${moltbot_user}:${moltbot_user} "$MOLTBOT_WORKSPACE"
+OPENCLAW_WORKSPACE="/home/${openclaw_user}/openclaw"
+mkdir -p "$OPENCLAW_WORKSPACE"
+chown -R ${openclaw_user}:${openclaw_user} "$OPENCLAW_WORKSPACE"
 
 # Create systemd service file (disabled by default - user enables after config)
-cat > /etc/systemd/system/moltbot.service <<SVCEOF
+cat > /etc/systemd/system/openclaw.service <<SVCEOF
 [Unit]
-Description=Moltbot Gateway Service
+Description=OpenClaw Gateway Service
 After=network.target
 
 [Service]
 Type=simple
-User=${moltbot_user}
-WorkingDirectory=/home/${moltbot_user}/moltbot
-ExecStart=/usr/local/bin/moltbot gateway --bind loopback --port ${gateway_port}
+User=${openclaw_user}
+WorkingDirectory=/home/${openclaw_user}/openclaw
+ExecStart=/usr/local/bin/openclaw gateway --bind loopback --port ${gateway_port}
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
@@ -213,28 +208,28 @@ WantedBy=multi-user.target
 SVCEOF
 
 systemctl daemon-reload
-echo "Systemd service created (run 'sudo systemctl enable --now moltbot' after configuration)"
+echo "Systemd service created (run 'sudo systemctl enable --now openclaw' after configuration)"
 
 # Create helpful login message
-cat > /etc/update-motd.d/99-moltbot <<MOTDEOF
+cat > /etc/update-motd.d/99-openclaw <<MOTDEOF
 #!/bin/bash
 echo ""
 echo "=========================================="
-echo "  MOLTBOT INSTANCE READY"
+echo "  OPENCLAW INSTANCE READY"
 echo "=========================================="
 echo ""
 echo "Next steps:"
-echo "  1. Switch to moltbot user:   sudo -u ${moltbot_user} -i"
-echo "  2. Run onboarding:           moltbot onboard"
+echo "  1. Switch to openclaw user:  sudo -u ${openclaw_user} -i"
+echo "  2. Run onboarding:           openclaw onboard"
 echo "  3. IMPORTANT: Bind gateway to 127.0.0.1 only!"
-echo "  4. Enable service:           sudo systemctl enable --now moltbot"
+echo "  4. Enable service:           sudo systemctl enable --now openclaw"
 echo ""
 echo "Access gateway via SSH tunnel (from your local machine):"
-echo "  ssh -i ~/.ssh/moltbot_key.pem -L ${gateway_port}:127.0.0.1:${gateway_port} ubuntu@<this-ip> -N"
+echo "  ssh -i ~/.ssh/openclaw_key.pem -L ${gateway_port}:127.0.0.1:${gateway_port} ubuntu@<this-ip> -N"
 echo "  Then browse: http://127.0.0.1:${gateway_port}"
 echo ""
 MOTDEOF
-chmod +x /etc/update-motd.d/99-moltbot
+chmod +x /etc/update-motd.d/99-openclaw
 %{ endif }
 
 # -----------------------------------------------------------------------------
@@ -248,4 +243,4 @@ echo "=== Instance initialization complete ==="
 echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # Create marker file to indicate successful initialization
-touch /var/lib/cloud/instance/moltbot-init-complete
+touch /var/lib/cloud/instance/openclaw-init-complete

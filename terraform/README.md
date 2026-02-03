@@ -1,6 +1,6 @@
-# Terraform: Secure EC2 for molt.bot
+# Terraform: Secure EC2 for OpenClaw
 
-This Terraform configuration creates a security-hardened EC2 instance in a dedicated VPC for running [molt.bot](https://docs.molt.bot) (formerly clawdbot).
+This Terraform configuration creates a security-hardened EC2 instance in a dedicated VPC for running [OpenClaw](https://docs.openclaw.ai).
 
 ## Security Features
 
@@ -68,7 +68,7 @@ After apply, note these values:
 ### SSH Access
 
 ```bash
-ssh -i ~/.ssh/moltbot_key.pem ubuntu@<public-ip>
+ssh -i ~/.ssh/openclaw_key.pem ubuntu@<public-ip>
 ```
 
 ### Gateway Access (via SSH Tunnel)
@@ -77,7 +77,7 @@ ssh -i ~/.ssh/moltbot_key.pem ubuntu@<public-ip>
 
 1. Create SSH tunnel:
    ```bash
-   ssh -i ~/.ssh/moltbot_key.pem -L 18789:127.0.0.1:18789 ubuntu@<public-ip> -N
+   ssh -i ~/.ssh/openclaw_key.pem -L 18789:127.0.0.1:18789 ubuntu@<public-ip> -N
    ```
 
 2. Access gateway in browser:
@@ -85,7 +85,7 @@ ssh -i ~/.ssh/moltbot_key.pem ubuntu@<public-ip>
    http://127.0.0.1:18789
    ```
 
-## Post-Deployment: Installing molt.bot
+## Post-Deployment: Installing OpenClaw
 
 1. SSH to the instance
 2. Switch to the clawd user:
@@ -94,7 +94,7 @@ ssh -i ~/.ssh/moltbot_key.pem ubuntu@<public-ip>
    ```
 3. Run the onboard wizard:
    ```bash
-   moltbot onboard
+   openclaw onboard
    ```
 4. **Important**: When asked, bind the Gateway to `127.0.0.1` only
 
@@ -107,7 +107,7 @@ ssh -i ~/.ssh/moltbot_key.pem ubuntu@<public-ip>
 | Storage | 30 GB gp3 EBS (encrypted) |
 | Region | af-south-1 (Cape Town) |
 | Node.js | 22+ (auto-installed) |
-| User for moltbot | `clawd` |
+| User for OpenClaw | `clawd` |
 
 ## Security Hardening Applied
 
@@ -134,7 +134,7 @@ terraform/
 │   ├── terraform.tfvars        # Your values (gitignored)
 │   ├── terraform.tfvars.example
 │   └── backend.tf              # State backend config
-├── modules/moltbot/
+├── modules/openclaw/
 │   ├── main.tf                 # Provider config
 │   ├── variables.tf            # Input variables
 │   ├── outputs.tf              # Connection info
@@ -175,7 +175,7 @@ terraform destroy
    curl -4 ifconfig.me
    ```
 2. Check security group in AWS Console
-3. Ensure key permissions: `chmod 400 ~/.ssh/moltbot_key.pem`
+3. Ensure key permissions: `chmod 400 ~/.ssh/openclaw_key.pem`
 
 ### Cloud-init logs
 

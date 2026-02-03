@@ -1,12 +1,12 @@
-# Moltbot Onboarding Setup Guide
+# OpenClaw Onboarding Setup Guide
 
-This guide covers the secure onboarding configuration for moltbot on your EC2 instance.
+This guide covers the secure onboarding configuration for OpenClaw on your EC2 instance.
 
 Throughout this guide, replace `{instance}` with your instance name (e.g., pepper, alfred, jarvis).
 
 ## Prerequisites
 
-- EC2 instance running with moltbot installed
+- EC2 instance running with OpenClaw installed
 - SSH access to the instance
 - Telegram bot token (from @BotFather)
 - Gemini API key (see [gemini-api-key-setup.md](./gemini-api-key-setup.md))
@@ -14,26 +14,24 @@ Throughout this guide, replace `{instance}` with your instance name (e.g., peppe
 ## Connect to Instance
 
 ```bash
-./scripts/moltbot {instance} ssh
+./scripts/pepper {instance} ssh
 ```
 
-## Install Moltbot (if not already installed)
+## Install OpenClaw (if not already installed)
 
-The Terraform user_data script installs moltbot automatically. The actual binary is called `clawdbot`, but a `moltbot` symlink is created for convenience.
+The Terraform user_data script installs OpenClaw automatically.
 
-Both commands work:
+Check installation:
 ```bash
-moltbot --version   # via symlink
-clawdbot --version  # actual binary
+openclaw --version
 ```
 
 If you need to install manually:
 ```bash
-curl -fsSL https://molt.bot/install.sh | bash -s -- --no-setup
-sudo ln -sf /usr/local/bin/clawdbot /usr/local/bin/moltbot
+curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-setup
 ```
 
-## Switch to Moltbot User
+## Switch to OpenClaw User
 
 ```bash
 # Default user is "clawd" (configured in instance.yaml)
@@ -43,8 +41,7 @@ sudo -u clawd -i
 ## Run Onboarding
 
 ```bash
-moltbot onboard
-# Or: clawdbot onboard (same thing)
+openclaw onboard
 ```
 
 Select **Manual** when asked for setup type - this gives you control over security settings.
@@ -53,7 +50,7 @@ Select **Manual** when asked for setup type - this gives you control over securi
 
 ### Workspace Path
 ```
-/home/clawd/moltbot
+/home/clawd/openclaw
 ```
 
 ### Gateway Configuration
@@ -84,7 +81,7 @@ Select **Manual** when asked for setup type - this gives you control over securi
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| **Install daemon** | `No` | We have a pre-configured systemd service |
+| **Install daemon** | `No` | We use our pre-configured openclaw.service |
 
 ## Authorization: Allowlist vs DM Pairing
 
@@ -110,21 +107,21 @@ Select **Manual** when asked for setup type - this gives you control over securi
 
 ## After Onboarding
 
-### Start the Moltbot Service
+### Start the OpenClaw Service
 
 ```bash
 # Exit back to ubuntu user
 exit
 
 # Enable and start the service
-sudo systemctl enable --now moltbot
-sudo systemctl status moltbot
+sudo systemctl enable --now openclaw
+sudo systemctl status openclaw
 ```
 
 ### Verify Service is Running
 
 ```bash
-sudo systemctl status moltbot
+sudo systemctl status openclaw
 ```
 
 Expected output: `Active: active (running)`
@@ -132,7 +129,7 @@ Expected output: `Active: active (running)`
 ### Check Logs
 
 ```bash
-sudo journalctl -u moltbot -f
+sudo journalctl -u openclaw -f
 ```
 
 ## Accessing the Gateway
@@ -142,7 +139,7 @@ sudo journalctl -u moltbot -f
 From your local machine, use the wrapper to create an SSH tunnel and open the browser:
 
 ```bash
-./scripts/moltbot {instance} connect
+./scripts/pepper {instance} connect
 ```
 
 This creates the tunnel and opens http://127.0.0.1:18789 automatically.
@@ -153,39 +150,39 @@ This creates the tunnel and opens http://127.0.0.1:18789 automatically.
 
 1. Open Telegram, search for `@BotFather`
 2. Send `/newbot`
-3. Choose a name (e.g., "My Moltbot Assistant")
-4. Choose a username (must end in `bot`, e.g., `my_moltbot_bot`)
+3. Choose a name (e.g., "My OpenClaw Assistant")
+4. Choose a username (must end in `bot`, e.g., `my_openclaw_bot`)
 5. Copy the bot token
 
 ### Test the Bot
 
 1. Search for your bot in Telegram
 2. Send a message
-3. Check the moltbot logs to confirm it's received
+3. Check the OpenClaw logs to confirm it's received
 
 ## Troubleshooting
 
 ### Bot not responding
 ```bash
 # Check service status
-sudo systemctl status moltbot
+sudo systemctl status openclaw
 
 # Check logs
-sudo journalctl -u moltbot -f
+sudo journalctl -u openclaw -f
 
 # Restart service
-sudo systemctl restart moltbot
+sudo systemctl restart openclaw
 ```
 
 ### Gateway not accessible
 1. Verify SSH tunnel is running
-2. Check service is running: `sudo systemctl status moltbot`
+2. Check service is running: `sudo systemctl status openclaw`
 3. Verify binding: `ss -tlnp | grep 18789`
 
 ### Update configuration
 ```bash
 sudo -u clawd -i
-moltbot configure
+openclaw configure
 ```
 
 ## Security Checklist

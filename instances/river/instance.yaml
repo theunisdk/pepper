@@ -1,4 +1,4 @@
-# Moltbot Instance Configuration: river
+# OpenClaw Instance Configuration: river
 
 name: river
 display_name: River
@@ -13,8 +13,8 @@ instance:
   type: t3.small
   volume_size: 30
 
-# Moltbot Configuration
-moltbot:
+# OpenClaw Configuration
+openclaw:
   user: clawd
   gateway_port: 18789
 
@@ -37,5 +37,5 @@ paths:
 # Tags
 tags:
   Owner: your-name
-  Project: moltbot-river
+  Project: openclaw-river
   Environment: prod

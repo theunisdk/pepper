@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
-# DEDICATED VPC
-# Isolation from other workloads as recommended
+# DEDICATED VPC FOR DOCKER HOST
+# Single VPC for all OpenClaw containers
 # -----------------------------------------------------------------------------
 
 resource "aws_vpc" "main" {
@@ -15,7 +15,7 @@ resource "aws_vpc" "main" {
 
 # -----------------------------------------------------------------------------
 # INTERNET GATEWAY
-# Required for outbound access (apt updates, moltbot installation, etc.)
+# Required for outbound access (apt updates, Docker pulls, API calls)
 # -----------------------------------------------------------------------------
 
 resource "aws_internet_gateway" "main" {

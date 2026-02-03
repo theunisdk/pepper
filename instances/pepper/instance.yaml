@@ -1,4 +1,4 @@
-# Moltbot Instance Configuration: pepper
+# OpenClaw Instance Configuration: pepper
 
 name: pepper
 display_name: Pepper
@@ -13,8 +13,8 @@ instance:
   type: t3.small
   volume_size: 30
 
-# Moltbot Configuration
-moltbot:
+# OpenClaw Configuration
+openclaw:
   user: clawd
   gateway_port: 18789
 
@@ -37,5 +37,5 @@ paths:
 # Tags
 tags:
   Owner: theunisdk
-  Project: moltbot-pepper
+  Project: openclaw-pepper
   Environment: prod

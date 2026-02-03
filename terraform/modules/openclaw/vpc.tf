@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
-# DEDICATED VPC FOR DOCKER HOST
-# Single VPC for all moltbot containers
+# DEDICATED VPC
+# Isolation from other workloads as recommended
 # -----------------------------------------------------------------------------
 
 resource "aws_vpc" "main" {
@@ -15,7 +15,7 @@ resource "aws_vpc" "main" {
 
 # -----------------------------------------------------------------------------
 # INTERNET GATEWAY
-# Required for outbound access (apt updates, Docker pulls, API calls)
+# Required for outbound access (apt updates, OpenClaw installation, etc.)
 # -----------------------------------------------------------------------------
 
 resource "aws_internet_gateway" "main" {

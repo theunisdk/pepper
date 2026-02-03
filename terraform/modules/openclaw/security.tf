@@ -1,12 +1,12 @@
 # -----------------------------------------------------------------------------
 # SECURITY GROUP
 # Minimal ingress - SSH only from specified IP
-# All container ports bound to 127.0.0.1 (access via SSH tunnel)
+# Port 18789 is INTENTIONALLY NOT EXPOSED (access via SSH tunnel)
 # -----------------------------------------------------------------------------
 
-resource "aws_security_group" "docker_host" {
+resource "aws_security_group" "openclaw" {
   name        = "${local.name_prefix}-sg"
-  description = "Security group for moltbot Docker host - SSH only from trusted IP"
+  description = "Security group for OpenClaw instance - SSH only from trusted IP"
   vpc_id      = aws_vpc.main.id
 
   # SSH access from specific IP only
@@ -18,10 +18,11 @@ resource "aws_security_group" "docker_host" {
     cidr_blocks = [var.allowed_ssh_cidr]
   }
 
-  # NOTE: Container ports (18789-18799) are NOT opened
-  # All containers bind to 127.0.0.1, access via SSH tunnel only
+  # NOTE: Port 18789 is NOT opened intentionally
+  # Access the gateway via SSH tunnel:
+  # ssh -i key.pem -L 18789:127.0.0.1:18789 ubuntu@<public-ip> -N
 
-  # Allow all outbound traffic (for updates, Docker pulls, API calls)
+  # Allow all outbound traffic (for updates, API calls, etc.)
   egress {
     description = "Allow all outbound traffic"
     from_port   = 0

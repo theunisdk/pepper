@@ -1,6 +1,6 @@
-# Creating Multiple Moltbot Instances
+# Creating Multiple OpenClaw Instances
 
-This guide shows how to create and manage multiple named moltbot instances (e.g., "pepper", "alfred", "jarvis").
+This guide shows how to create and manage multiple named OpenClaw instances (e.g., "pepper", "alfred", "jarvis").
 
 ## Overview
 
@@ -20,44 +20,44 @@ nano instances/alfred/terraform.tfvars
 # Update: allowed_ssh_cidr = "YOUR_IP/32"
 
 # 3. Deploy
-./scripts/moltbot alfred terraform init
-./scripts/moltbot alfred terraform apply
+./scripts/pepper alfred terraform init
+./scripts/pepper alfred terraform apply
 
 # 4. Connect and configure
-./scripts/moltbot alfred ssh
+./scripts/pepper alfred ssh
 sudo -u clawd -i
-moltbot onboard
+openclaw onboard
 
 # 5. Use
-./scripts/moltbot alfred connect
+./scripts/pepper alfred connect
 ```
 
 ## Instance Management Commands
 
-All instance operations use the `moltbot` wrapper:
+All instance operations use the `pepper` wrapper:
 
 ```bash
 # Deploy instance
-./scripts/moltbot {name} terraform init
-./scripts/moltbot {name} terraform apply
+./scripts/pepper {name} terraform init
+./scripts/pepper {name} terraform apply
 
 # Connect to admin UI (opens browser with SSH tunnel)
-./scripts/moltbot {name} connect
+./scripts/pepper {name} connect
 
 # Backup
-./scripts/moltbot {name} backup
+./scripts/pepper {name} backup
 
 # Restore
-./scripts/moltbot {name} restore [backup-file]
+./scripts/pepper {name} restore [backup-file]
 
 # SSH
-./scripts/moltbot {name} ssh
+./scripts/pepper {name} ssh
 
 # Status
-./scripts/moltbot {name} status
+./scripts/pepper {name} status
 
 # Destroy
-./scripts/moltbot {name} terraform destroy
+./scripts/pepper {name} terraform destroy
 ```
 
 ## Directory Structure Per Instance
@@ -95,7 +95,7 @@ instance:
   type: t3.small
   volume_size: 30
 
-moltbot:
+openclaw:
   user: clawd
   gateway_port: 18789
 
@@ -114,7 +114,7 @@ paths:
 
 tags:
   Owner: your-name
-  Project: moltbot-alfred
+  Project: openclaw-alfred
 ```
 
 ## Network Isolation
@@ -147,19 +147,19 @@ This prevents accidental restore to the wrong instance.
 
 ## Working with Multiple Instances
 
-The `moltbot` wrapper handles context switching:
+The `pepper` wrapper handles context switching:
 
 ```bash
 # Work on pepper
-./scripts/moltbot pepper status
-./scripts/moltbot pepper backup
+./scripts/pepper pepper status
+./scripts/pepper pepper backup
 
 # Work on alfred
-./scripts/moltbot alfred status
-./scripts/moltbot alfred backup
+./scripts/pepper alfred status
+./scripts/pepper alfred backup
 
 # Work on jarvis
-./scripts/moltbot jarvis terraform apply
+./scripts/pepper jarvis terraform apply
 ```
 
 ## Example: Complete New Instance Setup
@@ -177,18 +177,18 @@ The `moltbot` wrapper handles context switching:
 #      → Set your IP address in allowed_ssh_cidr
 #
 #   2. Initialize Terraform:
-#      ./scripts/moltbot jarvis terraform init
+#      ./scripts/pepper jarvis terraform init
 #
 #   3. Deploy infrastructure:
-#      ./scripts/moltbot jarvis terraform apply
+#      ./scripts/pepper jarvis terraform apply
 #
 #   4. Connect and configure:
-#      ./scripts/moltbot jarvis ssh
+#      ./scripts/pepper jarvis ssh
 #      sudo -u clawd -i
-#      moltbot onboard
+#      openclaw onboard
 #
 #   5. Access admin UI:
-#      ./scripts/moltbot jarvis connect
+#      ./scripts/pepper jarvis connect
 
 # 2. Edit configuration
 nano instances/jarvis/terraform.tfvars
@@ -198,8 +198,8 @@ nano instances/jarvis/terraform.tfvars
 #   public_subnet_cidr = "10.102.1.0/24"
 
 # 3. Deploy
-./scripts/moltbot jarvis terraform init
-./scripts/moltbot jarvis terraform apply
+./scripts/pepper jarvis terraform init
+./scripts/pepper jarvis terraform apply
 
 # Terraform will output:
 # Apply complete! Resources: 21 added, 0 changed, 0 destroyed.
@@ -208,24 +208,24 @@ nano instances/jarvis/terraform.tfvars
 # instance_public_ip = "13.247.99.123"
 # ssh_connection_command = "ssh -i ~/.ssh/jarvis_key.pem ubuntu@13.247.99.123"
 
-# 4. SSH and configure moltbot
-./scripts/moltbot jarvis ssh
+# 4. SSH and configure openclaw
+./scripts/pepper jarvis ssh
 # On EC2:
 sudo -u clawd -i
-moltbot onboard
+openclaw onboard
 # ... follow onboarding wizard ...
 exit
 
 # 5. Enable service
-sudo systemctl enable --now moltbot
+sudo systemctl enable --now openclaw
 exit
 
 # 6. Connect to admin UI
-./scripts/moltbot jarvis connect
+./scripts/pepper jarvis connect
 # Opens http://127.0.0.1:18789 in browser
 
 # 7. Backup
-./scripts/moltbot jarvis backup
+./scripts/pepper jarvis backup
 # Saved to ~/.jarvis-backups/20260129-140000/jarvis-backup.tar.gz
 ```
 
@@ -234,7 +234,7 @@ exit
 Check instance status:
 
 ```bash
-./scripts/moltbot pepper status
+./scripts/pepper pepper status
 ```
 
 Output shows:
@@ -261,8 +261,8 @@ Instance IP:    UNKNOWN
 
 **Solution**: Terraform not yet applied. Run:
 ```bash
-./scripts/moltbot {instance} terraform init
-./scripts/moltbot {instance} terraform apply
+./scripts/pepper {instance} terraform init
+./scripts/pepper {instance} terraform apply
 ```
 
 ### Cannot connect to instance
@@ -284,7 +284,7 @@ If your IP changed, update terraform.tfvars:
 nano instances/{instance}/terraform.tfvars
 # Update allowed_ssh_cidr = "NEW_IP/32"
 
-./scripts/moltbot {instance} terraform apply
+./scripts/pepper {instance} terraform apply
 ```
 
 ## Destroying Instances
@@ -293,10 +293,10 @@ To completely remove an instance:
 
 ```bash
 # 1. Backup first (optional but recommended)
-./scripts/moltbot {instance} backup
+./scripts/pepper {instance} backup
 
 # 2. Destroy infrastructure
-./scripts/moltbot {instance} terraform destroy
+./scripts/pepper {instance} terraform destroy
 
 # 3. Remove instance directory (optional)
 rm -rf instances/{instance}/
@@ -340,7 +340,7 @@ If you have an existing single instance setup, it's already migrated! The `peppe
 
 To verify:
 ```bash
-./scripts/moltbot pepper status
+./scripts/pepper pepper status
 ```
 
 All old commands have been replaced:
@@ -351,9 +351,9 @@ All old commands have been replaced:
 ./scripts/connectToAdmin.sh
 
 # NEW (use these)
-./scripts/moltbot pepper backup
-./scripts/moltbot pepper restore
-./scripts/moltbot pepper connect
+./scripts/pepper pepper backup
+./scripts/pepper pepper restore
+./scripts/pepper pepper connect
 ```
 
 ## Advanced: Instance Templates
@@ -369,13 +369,13 @@ Example use cases:
 
 ```bash
 # Show usage
-./scripts/moltbot help
+./scripts/pepper help
 
 # List available instances
 ls -1 instances/ | grep -v ".example"
 
 # Check instance status
-./scripts/moltbot {instance} status
+./scripts/pepper {instance} status
 ```
 
 For issues:

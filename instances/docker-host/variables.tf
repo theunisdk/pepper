@@ -1,4 +1,4 @@
-# Variables for moltbot Docker host instance
+# Variables for OpenClaw Docker host instance
 
 # -----------------------------------------------------------------------------
 # AWS CONFIGURATION
@@ -76,13 +76,13 @@ variable "bots" {
 variable "ssh_private_key_path" {
   description = "Path to save the SSH private key"
   type        = string
-  default     = "~/.ssh/moltbot_docker_host_key.pem"
+  default     = "~/.ssh/openclaw_docker_host_key.pem"
 }
 
 variable "ssh_public_key_path" {
   description = "Path to save the SSH public key"
   type        = string
-  default     = "~/.ssh/moltbot_docker_host_key.pub"
+  default     = "~/.ssh/openclaw_docker_host_key.pub"
 }
 
 # -----------------------------------------------------------------------------

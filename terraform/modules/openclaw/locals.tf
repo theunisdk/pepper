@@ -7,7 +7,7 @@ locals {
       Project     = var.project_name
       Environment = var.environment
       ManagedBy   = "terraform"
-      Application = "moltbot"
+      Application = "openclaw"
     },
     var.additional_tags
   )

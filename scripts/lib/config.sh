@@ -1,5 +1,5 @@
 #!/bin/bash
-# Configuration loading for instances
+# Configuration loading for pepper (OpenClaw instances)
 
 # Detect deployment type from instance config
 get_deployment_type() {
@@ -102,7 +102,7 @@ load_instance_config() {
         fi
         error ""
         error "To create a new instance:"
-        error "  $PROJECT_ROOT/scripts/create-instance.sh $instance_name"
+        error "  $PROJECT_ROOT/scripts/create-docker-host"
         return 1
     fi
 
@@ -116,13 +116,13 @@ load_instance_config() {
 
     # Parse configuration values based on deployment type
     if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
-        # Docker deployment - no single moltbot user/port
-        export MOLTBOT_USER=""
-        export MOLTBOT_PORT=""
+        # Docker deployment - no single openclaw user/port
+        export OPENCLAW_USER=""
+        export OPENCLAW_PORT=""
     else
         # Single instance deployment
-        export MOLTBOT_USER=$(parse_yaml "$config_file" "moltbot.user")
-        export MOLTBOT_PORT=$(parse_yaml "$config_file" "moltbot.gateway_port")
+        export OPENCLAW_USER=$(parse_yaml "$config_file" "openclaw.user")
+        export OPENCLAW_PORT=$(parse_yaml "$config_file" "openclaw.gateway_port")
     fi
 
     export AWS_PROFILE=$(parse_yaml "$config_file" "aws.profile")
@@ -141,7 +141,7 @@ load_instance_config() {
     export BACKUP_DIR="${backup_dir/#\~/$HOME}"
 
     # Get instance IP
-    export MOLTBOT_HOST=$(get_instance_ip "$instance_name")
+    export OPENCLAW_HOST=$(get_instance_ip "$instance_name")
 
     if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
         info "Loaded Docker host configuration: ${CYAN}$instance_name${NC}"

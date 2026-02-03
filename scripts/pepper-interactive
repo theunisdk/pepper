@@ -1,6 +1,6 @@
 #!/bin/bash
-# Interactive Moltbot CLI
-# Provides menu-driven interface for managing moltbot instances
+# Interactive Pepper CLI
+# Provides menu-driven interface for managing OpenClaw instances
 
 set -euo pipefail
 
@@ -76,7 +76,7 @@ is_docker_instance() {
 main() {
     clear
     echo -e "${BOLD}╔════════════════════════════════════════╗${RESET}"
-    echo -e "${BOLD}║       MOLTBOT INTERACTIVE CLI          ║${RESET}"
+    echo -e "${BOLD}║        PEPPER INTERACTIVE CLI          ║${RESET}"
     echo -e "${BOLD}╚════════════════════════════════════════╝${RESET}"
     echo ""
 
@@ -160,11 +160,11 @@ main() {
         esac
 
         echo ""
-        echo -e "${DIM}Running: moltbot $instance $action $bot${RESET}"
+        echo -e "${DIM}Running: pepper $instance $action $bot${RESET}"
         echo ""
 
         # Execute command
-        exec "$SCRIPT_DIR/moltbot" "$instance" "$action" $bot
+        exec "$SCRIPT_DIR/pepper" "$instance" "$action" $bot
 
     else
         # Single instance commands
@@ -186,11 +186,11 @@ main() {
         fi
 
         echo ""
-        echo -e "${DIM}Running: moltbot $instance $action${RESET}"
+        echo -e "${DIM}Running: pepper $instance $action${RESET}"
         echo ""
 
         # Execute command
-        exec "$SCRIPT_DIR/moltbot" "$instance" "$action"
+        exec "$SCRIPT_DIR/pepper" "$instance" "$action"
     fi
 }
 

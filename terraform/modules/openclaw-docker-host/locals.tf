@@ -7,7 +7,7 @@ locals {
       Project     = var.project_name
       Environment = var.environment
       ManagedBy   = "terraform"
-      Application = "moltbot-docker-host"
+      Application = "openclaw-docker-host"
     },
     var.additional_tags
   )
