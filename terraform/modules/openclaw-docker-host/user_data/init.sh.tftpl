@@ -144,17 +144,30 @@ FROM node:24-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN useradd -m -s /bin/bash clawd
 
+# Install Google Cloud SDK
+RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && apt-get update && apt-get install -y --no-install-recommends google-cloud-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install gog (Google Suite CLI - Gmail, Calendar, Drive, etc.)
+RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin gog \
+    && chmod +x /usr/local/bin/gog
+
 # Install openclaw globally
 RUN curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-setup 2>/dev/null || \
     npm install -g openclaw@latest
 
-# Create data directories
-RUN mkdir -p /home/clawd/.clawdbot /home/clawd/.gog /home/clawd/openclaw && \
+# Create data directories and remove legacy .clawdbot if created by installer
+RUN rm -rf /home/clawd/.clawdbot && \
+    mkdir -p /home/clawd/.openclaw /home/clawd/.config/gogcli /home/clawd/openclaw && \
     chown -R clawd:clawd /home/clawd
 
 # Switch to non-root user
@@ -167,7 +180,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -sf http://127.0.0.1:$${OPENCLAW_PORT}/health || exit 1
 
 ENTRYPOINT ["openclaw"]
-CMD ["gateway", "--bind", "loopback", "--port", "18789"]
+CMD ["gateway", "run", "--bind", "loopback", "--port", "18789"]
 DOCKEREOF
 
 # Build local image
