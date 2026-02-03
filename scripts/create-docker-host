@@ -1,0 +1,668 @@
+#!/bin/bash
+# Create Docker Host Wizard
+# Interactive setup for new moltbot Docker host instances
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source "$SCRIPT_DIR/lib/common.sh"
+
+# Colors
+BOLD="\033[1m"
+DIM="\033[2m"
+RESET="\033[0m"
+GREEN="\033[0;32m"
+YELLOW="\033[0;33m"
+
+# Check for interactive selection tool
+select_tool=""
+if command -v gum &>/dev/null; then
+    select_tool="gum"
+elif command -v fzf &>/dev/null; then
+    select_tool="fzf"
+fi
+
+# Interactive input function
+input() {
+    local prompt="$1"
+    local default="${2:-}"
+    local result=""
+
+    if [[ "$select_tool" == "gum" ]]; then
+        if [[ -n "$default" ]]; then
+            result=$(gum input --placeholder "$default" --header "$prompt" --value "$default")
+        else
+            result=$(gum input --header "$prompt")
+        fi
+    else
+        if [[ -n "$default" ]]; then
+            read -p "$prompt [$default]: " result
+            result="${result:-$default}"
+        else
+            read -p "$prompt: " result
+        fi
+    fi
+    echo "$result"
+}
+
+# Interactive selection function
+choose() {
+    local prompt="$1"
+    shift
+    local options=("$@")
+
+    if [[ "$select_tool" == "gum" ]]; then
+        printf '%s\n' "${options[@]}" | gum choose --header "$prompt"
+    elif [[ "$select_tool" == "fzf" ]]; then
+        printf '%s\n' "${options[@]}" | fzf --header "$prompt" --height=~50% --reverse
+    else
+        echo -e "\n${BOLD}$prompt${RESET}" >&2
+        PS3="Enter number: "
+        select opt in "${options[@]}"; do
+            if [[ -n "$opt" ]]; then
+                echo "$opt"
+                break
+            fi
+        done
+    fi
+}
+
+# Confirm function
+confirm() {
+    local prompt="$1"
+    local default="${2:-y}"
+
+    if [[ "$select_tool" == "gum" ]]; then
+        if gum confirm "$prompt"; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        local yn
+        if [[ "$default" == "y" ]]; then
+            read -p "$prompt [Y/n]: " yn
+            yn="${yn:-y}"
+        else
+            read -p "$prompt [y/N]: " yn
+            yn="${yn:-n}"
+        fi
+        [[ "$yn" =~ ^[Yy] ]]
+    fi
+}
+
+# Get current public IP
+get_my_ip() {
+    curl -s https://ipinfo.io/ip 2>/dev/null || curl -s https://api.ipify.org 2>/dev/null || echo ""
+}
+
+# Get available AWS profiles
+get_aws_profiles() {
+    if [[ -f ~/.aws/credentials ]]; then
+        grep '^\[' ~/.aws/credentials | tr -d '[]' | sort
+    fi
+}
+
+# Get AWS regions
+get_aws_regions() {
+    cat <<EOF
+af-south-1
+ap-south-1
+ap-northeast-1
+ap-northeast-2
+ap-southeast-1
+ap-southeast-2
+eu-central-1
+eu-west-1
+eu-west-2
+us-east-1
+us-east-2
+us-west-1
+us-west-2
+EOF
+}
+
+# Validate instance name
+validate_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+        return 1
+    fi
+    if [[ -d "$PROJECT_ROOT/instances/$name" ]]; then
+        return 2
+    fi
+    return 0
+}
+
+# Generate VPC CIDR based on existing instances
+next_vpc_cidr() {
+    local max_second_octet=99
+    for dir in "$PROJECT_ROOT/instances"/*/; do
+        if [[ -f "${dir}instance.yaml" ]]; then
+            local cidr=$(grep "vpc_cidr:" "${dir}instance.yaml" 2>/dev/null | awk '{print $2}' | tr -d '"')
+            if [[ "$cidr" =~ ^10\.([0-9]+)\. ]]; then
+                local second="${BASH_REMATCH[1]}"
+                if (( second > max_second_octet )); then
+                    max_second_octet=$second
+                fi
+            fi
+        fi
+    done
+    echo "10.$((max_second_octet + 1)).0.0/16"
+}
+
+# Main wizard
+main() {
+    clear
+    echo -e "${BOLD}╔════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BOLD}║          CREATE DOCKER HOST WIZARD                     ║${RESET}"
+    echo -e "${BOLD}║   Set up a new EC2 instance with multiple moltbots     ║${RESET}"
+    echo -e "${BOLD}╚════════════════════════════════════════════════════════╝${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 1: AWS Profile
+    # ─────────────────────────────────────────────────────────
+    echo -e "${BOLD}STEP 1: AWS Configuration${RESET}"
+    echo ""
+
+    local profiles=($(get_aws_profiles))
+    if [[ ${#profiles[@]} -eq 0 ]]; then
+        error "No AWS profiles found in ~/.aws/credentials"
+        exit 1
+    fi
+
+    local aws_profile=$(choose "Select AWS profile:" "${profiles[@]}")
+    if [[ -z "$aws_profile" ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+    echo -e "  AWS Profile: ${GREEN}$aws_profile${RESET}"
+
+    # Verify profile works
+    echo -n "  Verifying credentials... "
+    if AWS_PROFILE="$aws_profile" aws sts get-caller-identity &>/dev/null; then
+        echo -e "${GREEN}OK${RESET}"
+    else
+        echo -e "${YELLOW}WARNING${RESET} - credentials may be expired"
+    fi
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 2: Region
+    # ─────────────────────────────────────────────────────────
+    local regions=($(get_aws_regions))
+    local aws_region=$(choose "Select AWS region:" "${regions[@]}")
+    if [[ -z "$aws_region" ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+    echo -e "  AWS Region: ${GREEN}$aws_region${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 3: Instance Name
+    # ─────────────────────────────────────────────────────────
+    echo -e "${BOLD}STEP 2: Instance Configuration${RESET}"
+    echo ""
+
+    local instance_name=""
+    while true; do
+        instance_name=$(input "Docker host name (e.g., serova-bots, my-bots)")
+        instance_name=$(echo "$instance_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+        if validate_name "$instance_name"; then
+            break
+        elif [[ $? -eq 2 ]]; then
+            warn "Instance '$instance_name' already exists. Choose another name."
+        else
+            warn "Invalid name. Use lowercase letters, numbers, and hyphens only."
+        fi
+    done
+    echo -e "  Instance name: ${GREEN}$instance_name${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 4: Instance Type
+    # ─────────────────────────────────────────────────────────
+    local instance_types=(
+        "t3.medium (4GB RAM - good for 3-5 bots)"
+        "t3.large (8GB RAM - good for 6-10 bots)"
+        "t3.small (2GB RAM - good for 1-2 bots)"
+    )
+    local instance_choice=$(choose "Select instance type:" "${instance_types[@]}")
+    local instance_type=$(echo "$instance_choice" | awk '{print $1}')
+    echo -e "  Instance type: ${GREEN}$instance_type${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 5: Configure Bots
+    # ─────────────────────────────────────────────────────────
+    echo -e "${BOLD}STEP 3: Bot Configuration${RESET}"
+    echo ""
+
+    local bots=()
+    local ports=()
+    local base_port=18789
+
+    echo "Add the bots you want to run on this host."
+    echo "Press Enter with empty name when done."
+    echo ""
+
+    while true; do
+        local bot_num=$((${#bots[@]} + 1))
+        local bot_name=$(input "Bot #$bot_num name (or Enter to finish)")
+
+        if [[ -z "$bot_name" ]]; then
+            if [[ ${#bots[@]} -eq 0 ]]; then
+                warn "You need at least one bot."
+                continue
+            fi
+            break
+        fi
+
+        # Validate bot name
+        bot_name=$(echo "$bot_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+        if [[ ! "$bot_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            warn "Invalid bot name. Use lowercase letters, numbers, and hyphens."
+            continue
+        fi
+
+        # Check for duplicates
+        local duplicate=false
+        for existing in "${bots[@]}"; do
+            if [[ "$existing" == "$bot_name" ]]; then
+                duplicate=true
+                break
+            fi
+        done
+        if $duplicate; then
+            warn "Bot '$bot_name' already added."
+            continue
+        fi
+
+        local port=$((base_port + ${#bots[@]}))
+        bots+=("$bot_name")
+        ports+=("$port")
+        echo -e "  Added: ${GREEN}$bot_name${RESET} (port: $port)"
+    done
+
+    echo ""
+    echo -e "  Total bots: ${GREEN}${#bots[@]}${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 6: SSH Access
+    # ─────────────────────────────────────────────────────────
+    echo -e "${BOLD}STEP 4: SSH Access${RESET}"
+    echo ""
+
+    local my_ip=$(get_my_ip)
+    local ssh_cidr=""
+
+    if [[ -n "$my_ip" ]]; then
+        echo -e "  Your current IP: ${CYAN}$my_ip${RESET}"
+        if confirm "Use this IP for SSH access?"; then
+            ssh_cidr="$my_ip/32"
+        fi
+    fi
+
+    if [[ -z "$ssh_cidr" ]]; then
+        ssh_cidr=$(input "Enter allowed SSH CIDR (e.g., 1.2.3.4/32)")
+    fi
+    echo -e "  SSH allowed from: ${GREEN}$ssh_cidr${RESET}"
+    echo ""
+
+    # SSH key paths
+    local ssh_key_name="${instance_name}_key"
+    local ssh_key_path="~/.ssh/${ssh_key_name}.pem"
+    local ssh_pubkey_path="~/.ssh/${ssh_key_name}.pub"
+    echo -e "  SSH key will be: ${GREEN}$ssh_key_path${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 7: Network Configuration
+    # ─────────────────────────────────────────────────────────
+    echo -e "${BOLD}STEP 5: Network Configuration${RESET}"
+    echo ""
+
+    local vpc_cidr=$(next_vpc_cidr)
+    echo -e "  VPC CIDR: ${GREEN}$vpc_cidr${RESET}"
+
+    local subnet_cidr="${vpc_cidr%%.0.0/16}.1.0/24"
+    echo -e "  Subnet CIDR: ${GREEN}$subnet_cidr${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Step 8: Storage
+    # ─────────────────────────────────────────────────────────
+    echo -e "${BOLD}STEP 6: Storage${RESET}"
+    echo ""
+
+    local volume_sizes=("30 GB" "50 GB (recommended)" "100 GB")
+    local volume_choice=$(choose "Select root volume size:" "${volume_sizes[@]}")
+    local volume_size=$(echo "$volume_choice" | awk '{print $1}')
+    echo -e "  Volume size: ${GREEN}${volume_size} GB${RESET}"
+    echo ""
+
+    # ─────────────────────────────────────────────────────────
+    # Summary & Confirmation
+    # ─────────────────────────────────────────────────────────
+    echo ""
+    echo -e "${BOLD}════════════════════════════════════════════════════════${RESET}"
+    echo -e "${BOLD}                    CONFIGURATION SUMMARY                ${RESET}"
+    echo -e "${BOLD}════════════════════════════════════════════════════════${RESET}"
+    echo ""
+    echo -e "  AWS Profile:    ${CYAN}$aws_profile${RESET}"
+    echo -e "  AWS Region:     ${CYAN}$aws_region${RESET}"
+    echo -e "  Instance Name:  ${CYAN}$instance_name${RESET}"
+    echo -e "  Instance Type:  ${CYAN}$instance_type${RESET}"
+    echo -e "  Volume Size:    ${CYAN}${volume_size} GB${RESET}"
+    echo -e "  SSH CIDR:       ${CYAN}$ssh_cidr${RESET}"
+    echo -e "  VPC CIDR:       ${CYAN}$vpc_cidr${RESET}"
+    echo ""
+    echo -e "  Bots:"
+    for i in "${!bots[@]}"; do
+        echo -e "    - ${CYAN}${bots[$i]}${RESET} (port: ${ports[$i]})"
+    done
+    echo ""
+    echo -e "${BOLD}════════════════════════════════════════════════════════${RESET}"
+    echo ""
+
+    if ! confirm "Create this Docker host?"; then
+        echo "Cancelled."
+        exit 0
+    fi
+
+    # ─────────────────────────────────────────────────────────
+    # Create Instance Files
+    # ─────────────────────────────────────────────────────────
+    echo ""
+    info "Creating instance directory..."
+
+    local instance_dir="$PROJECT_ROOT/instances/$instance_name"
+    mkdir -p "$instance_dir"
+
+    # Create instance.yaml
+    info "Creating instance.yaml..."
+    cat > "$instance_dir/instance.yaml" << EOF
+# Docker Host Configuration: $instance_name
+# Created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+name: $instance_name
+display_name: $instance_name Docker Host
+type: docker
+
+# AWS Configuration
+aws:
+  profile: $aws_profile
+  region: $aws_region
+
+# Host Instance Configuration
+instance:
+  type: $instance_type
+  volume_size: $volume_size
+
+# Bots to deploy (each gets isolated volumes)
+bots:
+EOF
+
+    for i in "${!bots[@]}"; do
+        cat >> "$instance_dir/instance.yaml" << EOF
+  - name: ${bots[$i]}
+    port: ${ports[$i]}
+EOF
+    done
+
+    cat >> "$instance_dir/instance.yaml" << EOF
+
+# SSH Configuration
+ssh:
+  key_name: $ssh_key_name
+  key_path: $ssh_key_path
+  public_key_path: $ssh_pubkey_path
+
+# Networking
+network:
+  allowed_ssh_cidr: "$ssh_cidr"
+  vpc_cidr: "$vpc_cidr"
+  subnet_cidr: "$subnet_cidr"
+
+# Paths
+paths:
+  backup_dir: ~/.${instance_name}-backups
+EOF
+
+    # Create main.tf
+    info "Creating main.tf..."
+    cat > "$instance_dir/main.tf" << EOF
+# Terraform configuration for Docker host: $instance_name
+# Created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+  }
+}
+
+provider "aws" {
+  region  = var.aws_region
+  profile = var.aws_profile
+
+  default_tags {
+    tags = {
+      Project     = "moltbot-$instance_name"
+      Instance    = "$instance_name"
+      Environment = "prod"
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+module "docker_host" {
+  source = "../../terraform/modules/moltbot-docker-host"
+
+  # Required
+  allowed_ssh_cidr = var.allowed_ssh_cidr
+
+  # Naming
+  project_name = "moltbot-$instance_name"
+  environment  = "prod"
+
+  # Network
+  aws_region               = var.aws_region
+  vpc_cidr                 = var.vpc_cidr
+  public_subnet_cidr       = var.public_subnet_cidr
+  availability_zone_suffix = "a"
+
+  # EC2
+  instance_type    = var.instance_type
+  root_volume_size = var.root_volume_size
+
+  # SSH Key
+  create_ssh_key       = true
+  ssh_private_key_path = var.ssh_private_key_path
+  ssh_public_key_path  = var.ssh_public_key_path
+
+  # Bots
+  bots = var.bots
+
+  # Docker
+  docker_image = "moltbot-local"
+  auto_start   = true
+
+  # Monitoring
+  enable_detailed_monitoring = true
+  enable_ssm                 = true
+}
+
+# Outputs
+output "instance_public_ip" {
+  description = "Public IP address of the Docker host"
+  value       = module.docker_host.instance_public_ip
+}
+
+output "ssh_connection_command" {
+  description = "Command to SSH into the Docker host"
+  value       = module.docker_host.ssh_connection_command
+}
+
+output "bots" {
+  description = "Bot configurations with tunnel commands"
+  value       = module.docker_host.bots
+}
+
+output "docker_commands" {
+  description = "Useful Docker management commands"
+  value       = module.docker_host.docker_commands
+}
+EOF
+
+    # Create variables.tf
+    info "Creating variables.tf..."
+    cat > "$instance_dir/variables.tf" << 'EOF'
+variable "aws_profile" {
+  description = "AWS CLI profile to use"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "allowed_ssh_cidr" {
+  description = "CIDR block allowed for SSH access"
+  type        = string
+}
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "root_volume_size" {
+  description = "Root volume size in GB"
+  type        = number
+  default     = 50
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+}
+
+variable "public_subnet_cidr" {
+  description = "Public subnet CIDR block"
+  type        = string
+}
+
+variable "ssh_private_key_path" {
+  description = "Path to save SSH private key"
+  type        = string
+}
+
+variable "ssh_public_key_path" {
+  description = "Path to save SSH public key"
+  type        = string
+}
+
+variable "bots" {
+  description = "List of bots to deploy"
+  type = list(object({
+    name = string
+    port = number
+  }))
+}
+EOF
+
+    # Create terraform.tfvars
+    info "Creating terraform.tfvars..."
+    cat > "$instance_dir/terraform.tfvars" << EOF
+# Terraform variables for $instance_name
+# WARNING: Contains sensitive values - do not commit to git
+
+aws_profile = "$aws_profile"
+aws_region  = "$aws_region"
+
+allowed_ssh_cidr = "$ssh_cidr"
+
+instance_type    = "$instance_type"
+root_volume_size = $volume_size
+
+vpc_cidr           = "$vpc_cidr"
+public_subnet_cidr = "$subnet_cidr"
+
+ssh_private_key_path = "$ssh_key_path"
+ssh_public_key_path  = "$ssh_pubkey_path"
+
+bots = [
+EOF
+
+    for i in "${!bots[@]}"; do
+        cat >> "$instance_dir/terraform.tfvars" << EOF
+  { name = "${bots[$i]}", port = ${ports[$i]} },
+EOF
+    done
+
+    cat >> "$instance_dir/terraform.tfvars" << EOF
+]
+EOF
+
+    # Create .gitignore
+    info "Creating .gitignore..."
+    cat > "$instance_dir/.gitignore" << 'EOF'
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Sensitive
+terraform.tfvars
+EOF
+
+    echo ""
+    success "Instance '$instance_name' created successfully!"
+    echo ""
+    echo -e "${BOLD}Next steps:${RESET}"
+    echo ""
+    echo "  1. Initialize Terraform:"
+    echo -e "     ${CYAN}./scripts/moltbot $instance_name terraform init${RESET}"
+    echo ""
+    echo "  2. Review and apply:"
+    echo -e "     ${CYAN}./scripts/moltbot $instance_name terraform plan${RESET}"
+    echo -e "     ${CYAN}./scripts/moltbot $instance_name terraform apply${RESET}"
+    echo ""
+    echo "  3. Onboard each bot:"
+    for bot in "${bots[@]}"; do
+        echo -e "     ${CYAN}./scripts/moltbot $instance_name onboard $bot${RESET}"
+    done
+    echo ""
+    echo "  4. Connect to a bot:"
+    echo -e "     ${CYAN}./scripts/moltbot $instance_name connect ${bots[0]}${RESET}"
+    echo ""
+    echo "  Or use the interactive CLI:"
+    echo -e "     ${CYAN}./scripts/moltbot-interactive${RESET}"
+    echo ""
+}
+
+# Handle Ctrl+C gracefully
+trap 'echo ""; echo "Cancelled."; exit 0' INT
+
+main "$@"
