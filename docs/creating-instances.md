@@ -2,14 +2,176 @@
 
 This guide shows how to create and manage multiple named OpenClaw instances (e.g., "pepper", "alfred", "jarvis").
 
+## Deployment Models
+
+| Model | Use Case | Isolation | Cost |
+|-------|----------|-----------|------|
+| **EC2 Instance** | Production, single bot | Full (dedicated VPC) | ~$19/month per bot |
+| **Docker Local** | Development, testing | Container-level | Free (local) |
+| **Docker Host** | Multi-bot on one EC2 | Container-level | ~$19/month total |
+
 ## Overview
 
 Each instance is:
-- Completely isolated (separate AWS infrastructure, SSH keys, backups)
+- Completely isolated (separate infrastructure or container volumes)
 - Independently deployable and destroyable
-- Configured via its own `instance.yaml` and `terraform.tfvars`
+- Configured via its own `instance.yaml`
 
-## Quick Start: Create a New Instance
+---
+
+## Docker Deployment (Local or Multi-Bot Host)
+
+### Quick Start: Local Docker Instance
+
+```bash
+cd docker
+
+# 1. Build and start the container
+docker compose -f docker-compose.local.yml up -d --build
+
+# 2. Stop the gateway to run onboarding
+docker compose -f docker-compose.local.yml stop iris
+
+# 3. Run onboarding in a setup container
+docker run --rm -it --name openclaw-iris-setup \
+  -v openclaw_iris-config:/home/clawd/.openclaw \
+  -v openclaw_iris-gogcli:/home/clawd/.config/gogcli \
+  -v openclaw_iris-workspace:/home/clawd/openclaw \
+  -e GOG_KEYRING_PASSWORD=openclaw-iris \
+  --entrypoint bash \
+  openclaw-local:latest
+
+# 4. Inside the container, run onboard
+openclaw onboard
+# Follow the wizard, then exit
+exit
+
+# 5. Start the gateway
+docker compose -f docker-compose.local.yml up -d iris
+
+# 6. Access the UI at http://127.0.0.1:18791
+```
+
+### Docker Image Features
+
+The Docker image includes pre-installed tools:
+- **OpenClaw** - AI gateway and bot framework
+- **gcloud** - Google Cloud SDK CLI
+- **gog** - Google Suite CLI (Gmail, Calendar, Drive, Contacts)
+
+### Docker Volumes
+
+Each container uses three persistent volumes:
+
+| Volume | Container Path | Purpose |
+|--------|----------------|---------|
+| `{name}-config` | `/home/clawd/.openclaw` | OpenClaw config, tokens, sessions |
+| `{name}-gogcli` | `/home/clawd/.config/gogcli` | gog OAuth tokens and keyring |
+| `{name}-workspace` | `/home/clawd/openclaw` | Agent workspace directory |
+
+### Environment Variables
+
+| Variable | Example Value | Purpose |
+|----------|---------------|---------|
+| `OPENCLAW_INSTANCE` | `iris` | Identifies the bot instance |
+| `OPENCLAW_PORT` | `18789` | Gateway port inside container |
+| `GOG_KEYRING_PASSWORD` | `openclaw-iris` | Auto-unlocks gog keyring (no prompts) |
+| `NODE_ENV` | `development` | Node environment |
+
+### Setting Up gog (Gmail/Calendar Access)
+
+After onboarding, configure gog for Google services:
+
+```bash
+# Enter the running container
+docker exec -it openclaw-iris bash
+
+# Add your Google account credentials
+# (You'll need a client_secret.json from Google Cloud Console)
+gog auth credentials /path/to/client_secret.json
+gog auth add your@gmail.com --services gmail,calendar,drive
+
+# The keyring password is auto-provided via GOG_KEYRING_PASSWORD
+exit
+```
+
+### Docker Instance Configuration
+
+Docker instances use `instance.yaml` with `deployment.type: docker-local`:
+
+```yaml
+# instances/iris/instance.yaml
+name: iris
+display_name: Iris (Local Docker)
+
+deployment:
+  type: docker-local
+  compose_file: docker/docker-compose.local.yml
+
+openclaw:
+  user: clawd
+  gateway_port: 18791  # Local port mapping
+
+paths:
+  backup_dir: ~/.iris-backups
+
+tags:
+  Owner: theunisdk
+  Project: openclaw-iris
+  Environment: local
+```
+
+### Adding More Docker Instances
+
+To add another bot to the same Docker host, edit `docker-compose.local.yml`:
+
+```yaml
+services:
+  iris:
+    # ... existing iris config ...
+
+  alfred:
+    image: openclaw-local:latest
+    container_name: openclaw-alfred
+    restart: unless-stopped
+    command: ["gateway", "run", "--bind", "lan", "--port", "18789"]
+    ports:
+      - "127.0.0.1:18792:18789"  # Different local port
+    volumes:
+      - alfred-config:/home/clawd/.openclaw
+      - alfred-gogcli:/home/clawd/.config/gogcli
+      - alfred-workspace:/home/clawd/openclaw
+    environment:
+      - OPENCLAW_INSTANCE=alfred
+      - OPENCLAW_PORT=18789
+      - GOG_KEYRING_PASSWORD=openclaw-alfred
+    # ... rest of config ...
+
+volumes:
+  # ... existing volumes ...
+  alfred-config:
+    name: openclaw_alfred-config
+  alfred-gogcli:
+    name: openclaw_alfred-gogcli
+  alfred-workspace:
+    name: openclaw_alfred-workspace
+```
+
+Then onboard the new instance:
+```bash
+docker compose -f docker-compose.local.yml stop alfred
+docker run --rm -it \
+  -v openclaw_alfred-config:/home/clawd/.openclaw \
+  -v openclaw_alfred-gogcli:/home/clawd/.config/gogcli \
+  -v openclaw_alfred-workspace:/home/clawd/openclaw \
+  -e GOG_KEYRING_PASSWORD=openclaw-alfred \
+  --entrypoint bash openclaw-local:latest
+# Run: openclaw onboard
+```
+
+---
+
+## EC2 Deployment (Production)
 
 ```bash
 # 1. Create instance named "alfred"
@@ -28,11 +190,16 @@ nano instances/alfred/terraform.tfvars
 sudo -u clawd -i
 openclaw onboard
 
-# 5. Use
+# 5. Enable the service
+exit
+sudo systemctl enable --now openclaw
+exit
+
+# 6. Access admin UI
 ./scripts/pepper alfred connect
 ```
 
-## Instance Management Commands
+### EC2 Instance Management Commands
 
 All instance operations use the `pepper` wrapper:
 

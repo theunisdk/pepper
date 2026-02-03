@@ -1,17 +1,80 @@
 # OpenClaw Onboarding Setup Guide
 
-This guide covers the secure onboarding configuration for OpenClaw on your EC2 instance.
+This guide covers the secure onboarding configuration for OpenClaw.
 
-Throughout this guide, replace `{instance}` with your instance name (e.g., pepper, alfred, jarvis).
+Throughout this guide, replace `{instance}` with your instance name (e.g., pepper, alfred, iris).
 
 ## Prerequisites
 
-- EC2 instance running with OpenClaw installed
-- SSH access to the instance
+- OpenClaw installed (EC2 instance or Docker container)
 - Telegram bot token (from @BotFather)
-- Gemini API key (see [gemini-api-key-setup.md](./gemini-api-key-setup.md))
+- API key for your AI provider (Gemini, OpenAI, etc.)
 
-## Connect to Instance
+---
+
+## Docker Onboarding
+
+For Docker deployments, onboarding requires stopping the gateway first:
+
+### Step 1: Stop the Gateway Container
+
+```bash
+cd docker
+docker compose -f docker-compose.local.yml stop {instance}
+```
+
+### Step 2: Run Onboarding in a Setup Container
+
+```bash
+docker run --rm -it --name openclaw-{instance}-setup \
+  -v openclaw_{instance}-config:/home/clawd/.openclaw \
+  -v openclaw_{instance}-gogcli:/home/clawd/.config/gogcli \
+  -v openclaw_{instance}-workspace:/home/clawd/openclaw \
+  -e GOG_KEYRING_PASSWORD=openclaw-{instance} \
+  --entrypoint bash \
+  openclaw-local:latest
+```
+
+### Step 3: Run Onboard Inside the Container
+
+```bash
+openclaw onboard
+```
+
+Follow the wizard (see [Recommended Settings](#recommended-settings) below).
+
+### Step 4: Exit and Start the Gateway
+
+```bash
+exit
+docker compose -f docker-compose.local.yml up -d {instance}
+```
+
+### Step 5: Access the UI
+
+Open http://127.0.0.1:18791 (or the port configured for your instance).
+
+### Setting Up gog (Google Services)
+
+After onboarding, configure gog for Gmail/Calendar access:
+
+```bash
+# Enter the running container
+docker exec -it openclaw-{instance} bash
+
+# Add Google credentials (requires client_secret.json from Google Cloud Console)
+gog auth credentials /path/to/client_secret.json
+gog auth add your@gmail.com --services gmail,calendar,drive
+
+# The keyring password is auto-provided via GOG_KEYRING_PASSWORD env var
+exit
+```
+
+---
+
+## EC2 Onboarding
+
+### Connect to Instance
 
 ```bash
 ./scripts/pepper {instance} ssh
@@ -107,7 +170,20 @@ Select **Manual** when asked for setup type - this gives you control over securi
 
 ## After Onboarding
 
-### Start the OpenClaw Service
+### For Docker Deployments
+
+```bash
+# Start the container
+docker compose -f docker-compose.local.yml up -d {instance}
+
+# Check logs
+docker logs openclaw-{instance} -f
+
+# Access UI at http://127.0.0.1:{port}
+# (port is 18791 for iris, check your docker-compose for others)
+```
+
+### For EC2 Deployments
 
 ```bash
 # Exit back to ubuntu user
@@ -120,29 +196,31 @@ sudo systemctl status openclaw
 
 ### Verify Service is Running
 
+**Docker:**
+```bash
+docker ps --filter name=openclaw-{instance}
+docker logs openclaw-{instance} -f
+```
+
+**EC2:**
 ```bash
 sudo systemctl status openclaw
-```
-
-Expected output: `Active: active (running)`
-
-### Check Logs
-
-```bash
 sudo journalctl -u openclaw -f
 ```
+
+Expected output shows gateway listening on port 18789.
 
 ## Accessing the Gateway
 
 **Never expose port 18789 to the internet.**
 
-From your local machine, use the wrapper to create an SSH tunnel and open the browser:
+**Docker (local):**
+- Access directly at http://127.0.0.1:{port}
+- Port depends on your docker-compose config (e.g., 18791 for iris)
 
-```bash
-./scripts/pepper {instance} connect
-```
-
-This creates the tunnel and opens http://127.0.0.1:18789 automatically.
+**EC2:**
+- Use SSH tunnel: `./scripts/pepper {instance} connect`
+- This creates the tunnel and opens http://127.0.0.1:18789 automatically.
 
 ## Telegram Bot Setup
 
@@ -163,6 +241,20 @@ This creates the tunnel and opens http://127.0.0.1:18789 automatically.
 ## Troubleshooting
 
 ### Bot not responding
+
+**Docker:**
+```bash
+# Check container status
+docker ps --filter name=openclaw-{instance}
+
+# Check logs
+docker logs openclaw-{instance} -f
+
+# Restart container
+docker compose -f docker-compose.local.yml restart {instance}
+```
+
+**EC2:**
 ```bash
 # Check service status
 sudo systemctl status openclaw
@@ -175,23 +267,58 @@ sudo systemctl restart openclaw
 ```
 
 ### Gateway not accessible
+
+**Docker:**
+1. Check container is running: `docker ps`
+2. Check port mapping: `docker port openclaw-{instance}`
+3. Check logs for errors: `docker logs openclaw-{instance}`
+
+**EC2:**
 1. Verify SSH tunnel is running
 2. Check service is running: `sudo systemctl status openclaw`
 3. Verify binding: `ss -tlnp | grep 18789`
 
 ### Update configuration
+
+**Docker:**
+```bash
+docker exec -it openclaw-{instance} openclaw configure
+```
+
+**EC2:**
 ```bash
 sudo -u clawd -i
 openclaw configure
 ```
 
+### gog Keyring Password Prompt
+
+If gog prompts for a keyring password, the `GOG_KEYRING_PASSWORD` environment variable may not be set.
+
+**Docker:** Check docker-compose includes:
+```yaml
+environment:
+  - GOG_KEYRING_PASSWORD=openclaw-{instance}
+```
+
+Then restart: `docker compose -f docker-compose.local.yml up -d {instance}`
+
 ## Security Checklist
 
+### All Deployments
 - [ ] Gateway bound to `127.0.0.1` (not `0.0.0.0`)
-- [ ] Gateway auth set to "Off (loopback only)"
-- [ ] Tailscale disabled
 - [ ] Telegram using Allowlist authorization
 - [ ] Only your Telegram ID in allowlist
+- [ ] API keys have minimal permissions
+
+### EC2 Specific
+- [ ] Gateway auth set to "Off (loopback only)"
+- [ ] Tailscale disabled
 - [ ] API key locked to EC2 IP
 - [ ] UFW firewall enabled (port 18789 NOT open)
 - [ ] Accessing gateway via SSH tunnel only
+
+### Docker Specific
+- [ ] Port mapping binds to `127.0.0.1` only (e.g., `127.0.0.1:18791:18789`)
+- [ ] Volumes use named volumes (not bind mounts with secrets)
+- [ ] GOG_KEYRING_PASSWORD set (for gog auto-unlock)

@@ -44,24 +44,40 @@ A secure, self-hosted AI assistant framework built on [OpenClaw](https://opencla
                       Your Phone/Laptop
 ```
 
-## Multi-Instance Support
+## Deployment Models
 
-This framework supports running multiple independent OpenClaw instances in parallel:
+Pepper supports two deployment models:
+
+### 1. EC2 Instance (Production)
+
+Each bot runs on a dedicated EC2 instance with its own VPC:
 
 ```bash
-# Create new instance
+# Create and deploy EC2 instance
 ./scripts/create-instance.sh alfred
-
-# Manage instances with unified wrapper
-./scripts/pepper pepper backup     # Backup pepper
-./scripts/pepper alfred connect    # Connect to alfred's admin UI
-./scripts/pepper jarvis terraform apply  # Deploy jarvis
+./scripts/pepper alfred terraform init
+./scripts/pepper alfred terraform apply
 
 # Each instance has:
 # ✓ Separate AWS infrastructure (VPC, EC2, EIP)
 # ✓ Separate SSH keys
 # ✓ Separate backups
 # ✓ Separate Terraform state
+```
+
+### 2. Docker (Local Development / Multi-Bot Host)
+
+Multiple bots run as containers on a single host:
+
+```bash
+# Local development
+cd docker
+docker compose -f docker-compose.local.yml up -d
+
+# Each container has:
+# ✓ Isolated config, workspace, and gog credentials
+# ✓ Pre-installed gcloud and gog CLI
+# ✓ Auto-configured GOG_KEYRING_PASSWORD
 ```
 
 **See [Creating Instances Guide](docs/creating-instances.md) for details.**
@@ -372,7 +388,60 @@ gog auth add pepper@domain.com
 
 ## Development
 
-### Local Testing
+### Local Docker Testing
+
+The easiest way to test changes is with local Docker:
+
+```bash
+cd docker
+
+# Build and start container
+docker compose -f docker-compose.local.yml up -d --build
+
+# First time: Run onboarding (container must be stopped first)
+docker compose -f docker-compose.local.yml stop iris
+docker run --rm -it --name openclaw-iris-setup \
+  -v openclaw_iris-config:/home/clawd/.openclaw \
+  -v openclaw_iris-gogcli:/home/clawd/.config/gogcli \
+  -v openclaw_iris-workspace:/home/clawd/openclaw \
+  -e GOG_KEYRING_PASSWORD=openclaw-iris \
+  --entrypoint bash \
+  openclaw-local:latest
+
+# Inside container:
+openclaw onboard
+exit
+
+# Start the gateway
+docker compose -f docker-compose.local.yml up -d iris
+
+# Access UI at http://127.0.0.1:18791
+```
+
+### Docker Image Contents
+
+The Docker image includes:
+- **OpenClaw** - AI gateway and bot
+- **gcloud** - Google Cloud SDK CLI
+- **gog** - Google Suite CLI (Gmail, Calendar, Drive)
+
+### Docker Volumes
+
+| Volume | Path | Purpose |
+|--------|------|---------|
+| `{name}-config` | `/home/clawd/.openclaw` | OpenClaw config, tokens, sessions |
+| `{name}-gogcli` | `/home/clawd/.config/gogcli` | gog OAuth tokens and keyring |
+| `{name}-workspace` | `/home/clawd/openclaw` | Agent workspace |
+
+### Environment Variables
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `OPENCLAW_INSTANCE` | Instance name | Identifies the bot |
+| `OPENCLAW_PORT` | `18789` | Gateway port |
+| `GOG_KEYRING_PASSWORD` | `openclaw-{name}` | Auto-unlocks gog keyring |
+
+### Terraform Testing
 
 ```bash
 # Run Terraform plan
@@ -490,5 +559,6 @@ For issues with:
 
 ## Changelog
 
+- **2026-02-03**: Added Docker deployment with gcloud and gog pre-installed
 - **2026-02-03**: Renamed from moltbot to pepper/openclaw
 - **2026-01-28**: Initial setup with Terraform, Google Workspace integration, backup scripts

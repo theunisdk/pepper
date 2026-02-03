@@ -13,12 +13,13 @@ services:
       - "127.0.0.1:${bot.port}:18789"
     volumes:
       - ${bot.name}-config:/home/clawd/.openclaw
-      - ${bot.name}-gog:/home/clawd/.gog
+      - ${bot.name}-gogcli:/home/clawd/.config/gogcli
       - ${bot.name}-workspace:/home/clawd/openclaw
     environment:
       - NODE_ENV=production
       - OPENCLAW_INSTANCE=${bot.name}
       - OPENCLAW_PORT=18789
+      - GOG_KEYRING_PASSWORD=openclaw-${bot.name}
     networks:
       - openclaw-network
     healthcheck:
@@ -38,8 +39,8 @@ volumes:
 %{ for bot in bots ~}
   ${bot.name}-config:
     name: openclaw_${bot.name}-config
-  ${bot.name}-gog:
-    name: openclaw_${bot.name}-gog
+  ${bot.name}-gogcli:
+    name: openclaw_${bot.name}-gogcli
   ${bot.name}-workspace:
     name: openclaw_${bot.name}-workspace
 %{ endfor ~}

@@ -14,12 +14,13 @@ services:
       - "127.0.0.1:18791:18789"
     volumes:
       - iris-config:/home/clawd/.openclaw
-      - iris-gog:/home/clawd/.gog
+      - iris-gogcli:/home/clawd/.config/gogcli
       - iris-workspace:/home/clawd/openclaw
     environment:
       - NODE_ENV=development
       - OPENCLAW_INSTANCE=iris
       - OPENCLAW_PORT=18789
+      - GOG_KEYRING_PASSWORD=openclaw-iris
     networks:
       - openclaw-network
     healthcheck:
@@ -37,8 +38,8 @@ services:
 volumes:
   iris-config:
     name: openclaw_iris-config
-  iris-gog:
-    name: openclaw_iris-gog
+  iris-gogcli:
+    name: openclaw_iris-gogcli
   iris-workspace:
     name: openclaw_iris-workspace
 
