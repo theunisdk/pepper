@@ -8,7 +8,9 @@ services:
     image: ${image}
     container_name: openclaw-${bot.name}
     restart: unless-stopped
-    command: ["gateway", "--bind", "loopback", "--port", "18789"]
+    stdin_open: true
+    tty: true
+    command: ["gateway", "run", "--bind", "loopback", "--port", "18789"]
     ports:
       - "127.0.0.1:${bot.port}:18789"
     volumes:

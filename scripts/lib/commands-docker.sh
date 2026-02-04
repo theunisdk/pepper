@@ -30,6 +30,111 @@ list_bots() {
     awk '/^bots:/{flag=1; next} flag && /^[a-z]/{exit} flag && /^  - name:/{gsub(/.*- name: */, ""); print}' "$config_file"
 }
 
+# Add a new bot to the Docker host
+exec_add_bot() {
+    local bot_name="${1:-}"
+    local bot_port="${2:-}"
+
+    if [[ -z "$bot_name" ]]; then
+        error "Usage: pepper $INSTANCE_NAME add-bot <name> [port]"
+        echo ""
+        info "Example: pepper $INSTANCE_NAME add-bot uhura"
+        info "Example: pepper $INSTANCE_NAME add-bot uhura 18792"
+        return 1
+    fi
+
+    # Check if bot already exists
+    if list_bots "$INSTANCE_CONFIG" | grep -q "^${bot_name}$"; then
+        error "Bot '$bot_name' already exists"
+        return 1
+    fi
+
+    # Find next available port if not specified
+    if [[ -z "$bot_port" ]]; then
+        local max_port=$(grep -oP 'port\s*[:=]\s*\K[0-9]+' "$INSTANCE_CONFIG" "$INSTANCE_DIR/terraform.tfvars" 2>/dev/null | sort -n | tail -1)
+        bot_port=$((max_port + 1))
+        info "Auto-assigned port: $bot_port"
+    fi
+
+    # Validate port is a number
+    if ! [[ "$bot_port" =~ ^[0-9]+$ ]]; then
+        error "Invalid port: $bot_port"
+        return 1
+    fi
+
+    info "Adding bot ${CYAN}$bot_name${NC} on port ${CYAN}$bot_port${NC}..."
+
+    # Update instance.yaml - insert new bot entry
+    info "Updating instance.yaml..."
+    local yaml_file="$INSTANCE_CONFIG"
+    local tmp_file="${yaml_file}.tmp"
+
+    # Find last bot entry and insert after it
+    awk -v name="$bot_name" -v port="$bot_port" '
+        /^bots:/ { in_bots=1 }
+        in_bots && /^  - name:/ { last_bot_line=NR; last_line=$0 }
+        in_bots && /^  #/ && !inserted && last_bot_line {
+            print "  - name: " name
+            print "    port: " port
+            inserted=1
+        }
+        { print }
+        END {
+            if (!inserted && last_bot_line) {
+                # No comments found, file ended - this shouldnt happen normally
+            }
+        }
+    ' "$yaml_file" > "$tmp_file" && mv "$tmp_file" "$yaml_file"
+
+    # Update terraform.tfvars
+    info "Updating terraform.tfvars..."
+    local tfvars_file="$INSTANCE_DIR/terraform.tfvars"
+
+    if [[ -f "$tfvars_file" ]]; then
+        # Insert new bot before the first comment line in the bots array
+        awk -v name="$bot_name" -v port="$bot_port" '
+            /^bots = \[/ { in_bots=1 }
+            in_bots && /^  #/ && !inserted {
+                print "  { name = \"" name "\", port = " port " },"
+                inserted=1
+            }
+            in_bots && /^\]/ && !inserted {
+                print "  { name = \"" name "\", port = " port " },"
+                inserted=1
+            }
+            { print }
+        ' "$tfvars_file" > "${tfvars_file}.tmp" && mv "${tfvars_file}.tmp" "$tfvars_file"
+    fi
+
+    success "Configuration updated!"
+    echo ""
+    info "Bot ${CYAN}$bot_name${NC} added on port ${CYAN}$bot_port${NC}"
+    echo ""
+
+    # Show next steps
+    info "To deploy the new bot, run:"
+    echo "  pepper $INSTANCE_NAME terraform apply"
+    echo ""
+    info "Then start and onboard:"
+    echo "  pepper $INSTANCE_NAME start $bot_name"
+    echo "  pepper $INSTANCE_NAME onboard $bot_name"
+    echo ""
+
+    read -p "Run terraform apply now? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        exec_terraform apply -auto-approve
+
+        echo ""
+        success "Bot $bot_name deployed!"
+        echo ""
+        info "Next steps:"
+        info "  1. Start the container: pepper $INSTANCE_NAME start $bot_name"
+        info "  2. Run onboarding:      pepper $INSTANCE_NAME onboard $bot_name"
+        info "  3. Connect to admin:    pepper $INSTANCE_NAME connect $bot_name"
+    fi
+}
+
 # Connect to admin UI via SSH tunnel (requires bot name)
 exec_connect() {
     local bot_name="${1:-}"
@@ -315,9 +420,33 @@ exec_onboard() {
         return 1
     fi
 
-    info "Running onboarding for ${CYAN}$bot_name${NC}..."
-    ssh -t -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
-        "docker compose -f /opt/openclaw/docker-compose.yml exec -it $bot_name openclaw onboard"
+    info "Stopping ${CYAN}$bot_name${NC} container for onboarding..."
+
+    # Stop the running gateway container first
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml stop $bot_name"
+
+    # Fix volume permissions (containers run as UID 1001 - clawd user)
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "for vol in config workspace gogcli; do docker run --rm -v openclaw_${bot_name}-\${vol}:/data alpine chown -R 1001:1001 /data 2>/dev/null; done"
+
+    info "Running onboarding wizard..."
+    echo ""
+
+    # Run onboard using 'docker compose run' which creates a new container with same volumes
+    # This allows interactive input to work properly
+    # Note: entrypoint is already 'openclaw', so just pass 'onboard'
+    ssh -tt -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml run --rm $bot_name onboard"
+
+    echo ""
+    info "Starting ${CYAN}$bot_name${NC} gateway..."
+
+    # Start the gateway container back up
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml start $bot_name"
+
+    success "Onboarding complete! Gateway is running."
 }
 
 # View logs
@@ -475,4 +604,96 @@ exec_restart() {
     fi
 
     success "Done!"
+}
+
+# Add Telegram user ID to allowFrom list
+exec_telegram_allow() {
+    local bot_name="${1:-}"
+    local user_id="${2:-}"
+
+    if [[ -z "$bot_name" ]]; then
+        error "Usage: pepper $INSTANCE_NAME telegram-allow <bot-name> <user-id>"
+        info "Available bots:"
+        list_bots "$INSTANCE_CONFIG" | sed 's/^/  - /'
+        return 1
+    fi
+
+    if [[ -z "$user_id" ]]; then
+        error "Usage: pepper $INSTANCE_NAME telegram-allow <bot-name> <user-id>"
+        info "Example: pepper $INSTANCE_NAME telegram-allow $bot_name 123456789"
+        return 1
+    fi
+
+    if [[ ! -f "$SSH_KEY" ]]; then
+        error "SSH key not found: $SSH_KEY"
+        return 1
+    fi
+
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
+        error "Docker host IP not found"
+        return 1
+    fi
+
+    info "Adding Telegram user ${CYAN}$user_id${NC} to ${CYAN}$bot_name${NC}..."
+
+    # Get current allowFrom list, add new ID, and set it back
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" << EOF
+cd /opt/openclaw
+# Get current list
+current=\$(docker compose exec -T $bot_name openclaw config get channels.telegram.allowFrom 2>/dev/null | grep -v '🦞' | tr -d '[:space:]')
+
+if [[ -z "\$current" ]] || [[ "\$current" == "null" ]]; then
+    # No existing list, create new one
+    new_list='["$user_id"]'
+else
+    # Check if ID already exists
+    if echo "\$current" | grep -q "\"$user_id\""; then
+        echo "User $user_id is already in the allowFrom list"
+        exit 0
+    fi
+    # Add to existing list (remove trailing ], add new ID, close bracket)
+    new_list=\$(echo "\$current" | sed 's/]$/,"'"$user_id"'"]/')
+fi
+
+# Set the new list
+docker compose exec -T $bot_name openclaw config set channels.telegram.allowFrom "\$new_list"
+EOF
+
+    if [ $? -eq 0 ]; then
+        success "Added user $user_id to $bot_name telegram allowFrom list"
+
+        # Show current list
+        info "Current allowFrom list:"
+        ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+            "docker compose -f /opt/openclaw/docker-compose.yml exec -T $bot_name openclaw config get channels.telegram.allowFrom" 2>/dev/null | grep -v '🦞'
+    else
+        error "Failed to add user ID"
+        return 1
+    fi
+}
+
+# Show Telegram allowFrom list
+exec_telegram_list() {
+    local bot_name="${1:-}"
+
+    if [[ -z "$bot_name" ]]; then
+        error "Usage: pepper $INSTANCE_NAME telegram-list <bot-name>"
+        info "Available bots:"
+        list_bots "$INSTANCE_CONFIG" | sed 's/^/  - /'
+        return 1
+    fi
+
+    if [[ ! -f "$SSH_KEY" ]]; then
+        error "SSH key not found: $SSH_KEY"
+        return 1
+    fi
+
+    if [[ "$OPENCLAW_HOST" == "UNKNOWN" ]]; then
+        error "Docker host IP not found"
+        return 1
+    fi
+
+    info "Telegram allowFrom list for ${CYAN}$bot_name${NC}:"
+    ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
+        "docker compose -f /opt/openclaw/docker-compose.yml exec -T $bot_name openclaw config get channels.telegram.allowFrom" 2>/dev/null | grep -v '🦞'
 }

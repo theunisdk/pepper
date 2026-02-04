@@ -9,7 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
     python3 \
+    # Chromium and dependencies for headless browser
+    chromium \
+    fonts-liberation \
+    libnss3 \
+    libxss1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Chromium path for Puppeteer/Playwright
+ENV CHROME_BIN=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Install Google Cloud SDK
 RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \

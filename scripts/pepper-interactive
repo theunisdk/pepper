@@ -108,18 +108,21 @@ main() {
 
         # Docker-specific commands
         local commands=(
-            "status     - Show host and container status"
-            "connect    - SSH tunnel to bot admin UI"
-            "logs       - View container logs"
-            "shell      - Shell into bot container"
-            "onboard    - Run onboarding for a bot"
-            "start      - Start containers"
-            "stop       - Stop containers"
-            "restart    - Restart containers"
-            "backup     - Backup bot volumes"
-            "restore    - Restore bot from backup"
-            "ssh        - SSH to Docker host"
-            "terraform  - Run Terraform commands"
+            "status          - Show host and container status"
+            "add-bot         - Add a new bot to the host"
+            "connect         - SSH tunnel to bot admin UI"
+            "logs            - View container logs"
+            "shell           - Shell into bot container"
+            "onboard         - Run onboarding for a bot"
+            "telegram-allow  - Add Telegram user ID"
+            "telegram-list   - List allowed Telegram users"
+            "start           - Start containers"
+            "stop            - Stop containers"
+            "restart         - Restart containers"
+            "backup          - Backup bot volumes"
+            "restore         - Restore bot from backup"
+            "ssh             - SSH to Docker host"
+            "terraform       - Run Terraform commands"
         )
 
         local action_line=$(choose "Select action:" "${commands[@]}")
@@ -130,9 +133,18 @@ main() {
             exit 0
         fi
 
-        # Commands that need a bot selection
+        # Commands that need a bot selection or input
         case "$action" in
-            connect|shell|onboard|logs|start|stop|restart)
+            add-bot)
+                # Prompt for new bot name
+                echo ""
+                read -p "Enter new bot name: " bot
+                if [[ -z "$bot" ]]; then
+                    echo "Cancelled."
+                    exit 0
+                fi
+                ;;
+            connect|shell|onboard|logs|start|stop|restart|telegram-list)
                 if [[ ${#bots[@]} -gt 0 ]]; then
                     local bot_options=("${bots[@]}")
                     # For some commands, add "all" option
@@ -144,6 +156,19 @@ main() {
 
                     if [[ "$bot" == "(all)" ]]; then
                         bot=""
+                    fi
+                fi
+                ;;
+            telegram-allow)
+                if [[ ${#bots[@]} -gt 0 ]]; then
+                    bot=$(choose "Select bot:" "${bots[@]}")
+                fi
+                if [[ -n "$bot" ]]; then
+                    echo ""
+                    read -p "Enter Telegram user ID to allow: " telegram_id
+                    if [[ -z "$telegram_id" ]]; then
+                        echo "Cancelled."
+                        exit 0
                     fi
                 fi
                 ;;
@@ -160,11 +185,18 @@ main() {
         esac
 
         echo ""
-        echo -e "${DIM}Running: pepper $instance $action $bot${RESET}"
+
+        # Build command args
+        local args="$bot"
+        if [[ "$action" == "telegram-allow" ]] && [[ -n "$telegram_id" ]]; then
+            args="$bot $telegram_id"
+        fi
+
+        echo -e "${DIM}Running: pepper $instance $action $args${RESET}"
         echo ""
 
         # Execute command
-        exec "$SCRIPT_DIR/pepper" "$instance" "$action" $bot
+        exec "$SCRIPT_DIR/pepper" "$instance" "$action" $args
 
     else
         # Single instance commands

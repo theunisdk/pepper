@@ -92,10 +92,20 @@ if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
         restart)
             exec_restart "$@"
             ;;
+        add-bot|add)
+            exec_add_bot "$@"
+            ;;
+        telegram-allow)
+            exec_telegram_allow "$@"
+            ;;
+        telegram-list)
+            exec_telegram_list "$@"
+            ;;
         *)
             error "Unknown command: $COMMAND"
             echo ""
             info "Available commands for Docker host:"
+            info "  add-bot <name>  - Add a new bot to the host"
             info "  terraform, tf   - Run Terraform commands"
             info "  connect <bot>   - SSH tunnel to bot admin UI"
             info "  backup [bot]    - Backup bot volumes"
@@ -108,6 +118,8 @@ if [[ "$DEPLOYMENT_TYPE" == "docker" ]]; then
             info "  start [bot]     - Start containers"
             info "  stop [bot]      - Stop containers"
             info "  restart [bot]   - Restart containers"
+            info "  telegram-allow <bot> <id> - Add Telegram user ID"
+            info "  telegram-list <bot>       - List allowed Telegram users"
             exit 1
             ;;
     esac
