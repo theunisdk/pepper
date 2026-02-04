@@ -239,7 +239,7 @@ mkdir -p /tmp/openclaw-backup-$backup_timestamp
 
 for bot in $bots; do
     echo "Backing up \$bot volumes..."
-    for suffix in config gog workspace; do
+    for suffix in config gog workspace ssh; do
         vol="openclaw_\${bot}-\${suffix}"
         if docker volume ls --format '{{.Name}}' | grep -q "^\$vol\$"; then
             docker run --rm \
@@ -330,7 +330,7 @@ exec_restore() {
     # Restore volumes
     info "Restoring volumes..."
     ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" << EOF
-for suffix in config gog workspace; do
+for suffix in config gog workspace ssh; do
     vol="openclaw_${bot_name}-\${suffix}"
     backup_file="/tmp/openclaw_${bot_name}-\${suffix}.tar.gz"
 
@@ -428,7 +428,7 @@ exec_onboard() {
 
     # Fix volume permissions (containers run as UID 1001 - clawd user)
     ssh -i "$SSH_KEY" "ubuntu@$OPENCLAW_HOST" \
-        "for vol in config workspace gogcli; do docker run --rm -v openclaw_${bot_name}-\${vol}:/data alpine chown -R 1001:1001 /data 2>/dev/null; done"
+        "for vol in config workspace gogcli ssh; do docker run --rm -v openclaw_${bot_name}-\${vol}:/data alpine chown -R 1001:1001 /data 2>/dev/null; done"
 
     info "Running onboarding wizard..."
     echo ""

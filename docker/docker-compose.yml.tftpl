@@ -17,6 +17,7 @@ services:
       - ${bot.name}-config:/home/clawd/.openclaw
       - ${bot.name}-gogcli:/home/clawd/.config/gogcli
       - ${bot.name}-workspace:/home/clawd/openclaw
+      - ${bot.name}-ssh:/home/clawd/.ssh
     environment:
       - NODE_ENV=production
       - OPENCLAW_INSTANCE=${bot.name}
@@ -45,6 +46,8 @@ volumes:
     name: openclaw_${bot.name}-gogcli
   ${bot.name}-workspace:
     name: openclaw_${bot.name}-workspace
+  ${bot.name}-ssh:
+    name: openclaw_${bot.name}-ssh
 %{ endfor ~}
 
 networks:
