@@ -116,7 +116,7 @@ paths:
   backup_dir: ~/.iris-backups
 
 tags:
-  Owner: theunisdk
+  Owner: your-name
   Project: openclaw-iris
   Environment: local
 ```
@@ -255,7 +255,7 @@ name: alfred
 display_name: Alfred
 
 aws:
-  profile: noldor
+  profile: your-aws-profile
   region: af-south-1
 
 instance:

@@ -50,7 +50,7 @@ display_name: $(echo ${INSTANCE_NAME^})
 
 # AWS Configuration
 aws:
-  profile: noldor
+  profile: \$AWS_PROFILE
   region: af-south-1
 
 # Instance Configuration
@@ -266,7 +266,7 @@ cat > "$INSTANCE_DIR/terraform.tfvars" <<EOF
 # Terraform variables for $INSTANCE_NAME
 # IMPORTANT: Update allowed_ssh_cidr with your IP!
 
-aws_profile      = "noldor"
+aws_profile      = "\$AWS_PROFILE"
 aws_region       = "af-south-1"
 allowed_ssh_cidr = "YOUR_IP_HERE/32"  # TODO: Update this!
 

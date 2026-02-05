@@ -210,7 +210,7 @@ main() {
 
     local instance_name=""
     while true; do
-        instance_name=$(input "Docker host name (e.g., serova-bots, my-bots)")
+        instance_name=$(input "Docker host name (e.g., prod-bots, my-bots)")
         instance_name=$(echo "$instance_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 
         if validate_name "$instance_name"; then

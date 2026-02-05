@@ -446,10 +446,10 @@ The Docker image includes:
 ```bash
 # Run Terraform plan
 cd terraform/environments/prod
-AWS_PROFILE=noldor terraform plan
+AWS_PROFILE=your-aws-profile terraform plan
 
 # Validate changes
-AWS_PROFILE=noldor terraform validate
+AWS_PROFILE=your-aws-profile terraform validate
 ```
 
 ### Update User Data Script
@@ -458,7 +458,7 @@ After editing `terraform/modules/openclaw/user_data/init.sh.tftpl`:
 
 ```bash
 # Recreate instance with new user_data
-AWS_PROFILE=noldor terraform apply -replace=module.openclaw.aws_instance.openclaw
+AWS_PROFILE=your-aws-profile terraform apply -replace=module.openclaw.aws_instance.openclaw
 ```
 
 ---

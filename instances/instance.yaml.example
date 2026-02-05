@@ -6,7 +6,7 @@ display_name: Example Bot
 
 # AWS Configuration
 aws:
-  profile: noldor
+  profile: your-aws-profile
   region: af-south-1
 
 # Instance Configuration

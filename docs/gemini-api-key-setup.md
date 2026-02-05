@@ -23,7 +23,7 @@ After creating the key, click on it to configure restrictions.
 Locks the key to only work from your EC2 instance.
 
 - Select **IP addresses** under Application restrictions
-- Add your EC2 Elastic IP: `13.247.25.37`
+- Add your EC2 Elastic IP: `YOUR_EC2_IP`
 - The key becomes useless if leaked - only works from your server
 
 ### 2. API Restriction
@@ -67,7 +67,7 @@ Get notified before unexpected charges.
 
 | Protection | Setting | Purpose |
 |------------|---------|---------|
-| IP Restriction | EC2 IP only (`13.247.25.37`) | Key useless outside your server |
+| IP Restriction | EC2 IP only (`YOUR_EC2_IP`) | Key useless outside your server |
 | API Restriction | Generative Language API only | Can't be used for other Google services |
 | Quotas | Daily/minute limits | Prevents runaway usage |
 | Billing Alerts | Budget cap with notifications | Early warning on spending |
@@ -98,7 +98,7 @@ If you need to update the API key later:
 
 ```bash
 # SSH to your instance
-ssh -i ~/.ssh/openclaw_key.pem ubuntu@13.247.25.37
+ssh -i ~/.ssh/openclaw_key.pem ubuntu@YOUR_EC2_IP
 
 # Switch to clawd user
 sudo -u clawd -i

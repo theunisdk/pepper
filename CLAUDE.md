@@ -1,1 +1,1 @@
-AWS profile=noldor
+AWS profile=your-aws-profile
